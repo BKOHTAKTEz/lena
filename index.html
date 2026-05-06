@@ -5,96 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover">
     <title>Dark House - Survival Horror</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        body {
-            background: #000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            width: 100vw;
-            overflow: hidden;
-            font-family: 'Courier New', monospace;
-            touch-action: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-        }
-        #game-container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
-            background: #000;
-        }
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-            image-rendering: auto;
-        }
-        #mobile-controls {
-            position: absolute;
-            bottom: 40px;
-            left: 0;
-            width: 100%;
-            display: none;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 30px;
-            pointer-events: none;
-            z-index: 20;
-        }
-        .joystick-zone {
-            width: 180px;
-            height: 180px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            position: relative;
-            pointer-events: auto;
-            flex-shrink: 0;
-        }
-        .joystick-thumb {
-            width: 65px;
-            height: 65px;
-            border-radius: 50%;
-            background: rgba(200, 160, 120, 0.85);
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            box-shadow: 0 0 25px rgba(200, 160, 120, 0.8);
-        }
-        .action-btn {
-            width: 90px;
-            height: 90px;
-            border-radius: 50%;
-            background: rgba(139, 0, 0, 0.75);
-            border: 2px solid rgba(200, 100, 100, 0.9);
-            color: #fff;
-            font-size: 26px;
-            font-weight: bold;
-            pointer-events: auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 0 30px rgba(139, 0, 0, 0.7);
-            cursor: pointer;
-            touch-action: manipulation;
-            flex-shrink: 0;
-        }
-        @media (max-width: 768px), (pointer: coarse) {
-            #mobile-controls { display: flex; }
-        }
+        * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; }
+        body { background:#000; display:flex; justify-content:center; align-items:center; height:100vh; width:100vw; overflow:hidden; font-family:'Courier New',monospace; touch-action:none; position:fixed; top:0; left:0; }
+        #game-container { position:relative; width:100vw; height:100vh; overflow:hidden; background:#000; }
+        canvas { display:block; width:100%; height:100%; }
+        #mobile-controls { position:absolute; bottom:40px; left:0; width:100%; display:none; justify-content:space-between; align-items:center; padding:0 30px; pointer-events:none; z-index:20; }
+        .joystick-zone { width:180px; height:180px; border-radius:50%; background:rgba(255,255,255,0.1); border:2px solid rgba(255,255,255,0.3); position:relative; pointer-events:auto; flex-shrink:0; }
+        .joystick-thumb { width:65px; height:65px; border-radius:50%; background:rgba(200,160,120,0.85); position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); pointer-events:none; box-shadow:0 0 25px rgba(200,160,120,0.8); }
+        .action-btn { width:90px; height:90px; border-radius:50%; background:rgba(139,0,0,0.75); border:2px solid rgba(200,100,100,0.9); color:#fff; font-size:26px; font-weight:bold; pointer-events:auto; display:flex; align-items:center; justify-content:center; box-shadow:0 0 30px rgba(139,0,0,0.7); cursor:pointer; touch-action:manipulation; flex-shrink:0; }
+        @media (max-width:768px),(pointer:coarse){ #mobile-controls{display:flex;} }
     </style>
 </head>
 <body>
@@ -122,17 +41,18 @@
             resizeCanvas();
 
             const TILE_SIZE = 48;
-            const MAP_COLS = 22, MAP_ROWS = 16;
-            const WORLD_W = MAP_COLS * TILE_SIZE;
-            const WORLD_H = MAP_ROWS * TILE_SIZE;
+            const MAP_COLS = 30, MAP_ROWS = 22;
+            const WORLD_W = MAP_COLS * TILE_SIZE, WORLD_H = MAP_ROWS * TILE_SIZE;
             const FLOOR = 0, WALL = 1, DOOR_UNLOCKED = 2, DOOR_LOCKED = 3, EXIT_DOOR = 4, HIDING_SPOT = 5, KEY_SPAWN = 6;
 
             let gameState = 'menu';
             let difficulty = 'medium';
             let characterType = 'balanced';
-            let playerHP = 3, playerMaxHP = 3, playerSpeed = 150, lightRadius = 180;
+            let playerHP = 3, playerMaxHP = 3, playerSpeed = 150, lightRadius = 200;
             let enemyBaseSpeed = 130, enemyHearingRange = 300;
+            let enemyExists = true;
 
+            // Audio
             let audioCtx = null;
             function initAudio() {
                 try {
@@ -172,31 +92,127 @@
             function playHeartbeat(){ playBeep(50,0.2,0.06,'sine'); }
             function playWinJingle(){ playBeep(400,0.15,0.08); setTimeout(()=>playBeep(600,0.15,0.08),150); setTimeout(()=>playBeep(800,0.25,0.1),300); }
 
-            const mapData = [
-                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-                [1,0,0,0,0,1,0,0,0,0,2,0,0,0,0,1,0,0,0,0,0,1],
-                [1,0,6,0,0,1,0,0,5,0,0,0,0,0,0,1,0,0,6,0,0,1],
-                [1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,1],
-                [1,0,0,5,0,1,0,0,0,0,0,0,0,0,0,1,0,0,5,0,0,1],
-                [1,1,2,1,1,1,1,1,2,1,1,1,1,2,1,1,1,1,2,1,1,1],
-                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-                [1,0,0,5,0,0,0,0,0,0,5,0,0,0,0,0,0,0,5,0,0,1],
-                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-                [1,1,1,1,2,1,1,1,1,2,1,1,1,1,2,1,1,1,1,1,1,1],
-                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-                [1,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,1],
-                [1,0,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,5,1],
-                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-                [1,0,0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,0,0,0,1],
-                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-            ];
+            function generateFloor1() {
+                const map = [];
+                for(let r=0; r<MAP_ROWS; r++) {
+                    map[r] = [];
+                    for(let c=0; c<MAP_COLS; c++) {
+                        if(r===0 || r===MAP_ROWS-1 || c===0 || c===MAP_COLS-1) map[r][c] = WALL;
+                        else map[r][c] = FLOOR;
+                    }
+                }
+                const walls = [
+                    {r1:1, c1:6, r2:5, c2:6}, {r1:1, c1:12, r2:5, c2:12}, {r1:1, c1:18, r2:5, c2:18}, {r1:1, c1:24, r2:5, c2:24},
+                    {r1:7, c1:6, r2:11, c2:6}, {r1:7, c1:12, r2:11, c2:12}, {r1:7, c1:18, r2:11, c2:18}, {r1:7, c1:24, r2:11, c2:24},
+                    {r1:13, c1:6, r2:17, c2:6}, {r1:13, c1:12, r2:17, c2:12}, {r1:13, c1:18, r2:17, c2:18}, {r1:13, c1:24, r2:17, c2:24},
+                    {r1:19, c1:6, r2:21, c2:6}, {r1:19, c1:12, r2:21, c2:12}, {r1:19, c1:18, r2:21, c2:18}, {r1:19, c1:24, r2:21, c2:24},
+                    {r1:5, c1:1, r2:5, c2:6}, {r1:5, c1:12, r2:5, c2:18}, {r1:5, c1:24, r2:5, c2:29},
+                    {r1:11, c1:1, r2:11, c2:6}, {r1:11, c1:12, r2:11, c2:18}, {r1:11, c1:24, r2:11, c2:29},
+                    {r1:17, c1:1, r2:17, c2:6}, {r1:17, c1:12, r2:17, c2:18}, {r1:17, c1:24, r2:17, c2:29},
+                    {r1:3, c1:8, r2:3, c2:12}, {r1:9, c1:14, r2:9, c2:18},
+                    {r1:15, c1:8, r2:15, c2:12}, {r1:20, c1:14, r2:20, c2:18},
+                    {r1:8, c1:2, r2:10, c2:2}, {r1:14, c1:26, r2:16, c2:26},
+                ];
+                walls.forEach(w => {
+                    for(let r=w.r1; r<=w.r2; r++) {
+                        for(let c=w.c1; c<=w.c2; c++) {
+                            if(r>0 && r<MAP_ROWS-1 && c>0 && c<MAP_COLS-1) map[r][c] = WALL;
+                        }
+                    }
+                });
+                const doorPositions = [
+                    {r:1, c:6}, {r:1, c:12}, {r:1, c:18}, {r:1, c:24},
+                    {r:3, c:6}, {r:3, c:12}, {r:3, c:18}, {r:3, c:24},
+                    {r:7, c:6}, {r:7, c:12}, {r:7, c:18}, {r:7, c:24},
+                    {r:9, c:6}, {r:9, c:12}, {r:9, c:18}, {r:9, c:24},
+                    {r:13, c:6}, {r:13, c:12}, {r:13, c:18}, {r:13, c:24},
+                    {r:15, c:6}, {r:15, c:12}, {r:15, c:18}, {r:15, c:24},
+                    {r:19, c:6}, {r:19, c:12}, {r:19, c:18}, {r:19, c:24},
+                    {r:5, c:3}, {r:5, c:9}, {r:5, c:15}, {r:5, c:21}, {r:5, c:27},
+                    {r:11, c:3}, {r:11, c:9}, {r:11, c:15}, {r:11, c:21}, {r:11, c:27},
+                    {r:17, c:3}, {r:17, c:9}, {r:17, c:15}, {r:17, c:21}, {r:17, c:27},
+                ];
+                doorPositions.forEach(d => {
+                    if(map[d.r] && map[d.r][d.c] === WALL) {
+                        map[d.r][d.c] = Math.random() < 0.5 ? DOOR_UNLOCKED : DOOR_LOCKED;
+                    }
+                });
+                return map;
+            }
+
+            let mapData = generateFloor1();
             let doorStates = {};
+            
+            function isTileDoor(r, c) {
+                const tile = mapData[r][c];
+                return tile === DOOR_UNLOCKED || tile === DOOR_LOCKED || tile === EXIT_DOOR;
+            }
+            function isNearDoor(r, c, minDist = 2) {
+                for(let dr = -minDist; dr <= minDist; dr++) {
+                    for(let dc = -minDist; dc <= minDist; dc++) {
+                        const nr = r + dr, nc = c + dc;
+                        if(nr >=0 && nr < MAP_ROWS && nc >=0 && nc < MAP_COLS && isTileDoor(nr, nc)) return true;
+                    }
+                }
+                return false;
+            }
+            function distanceToNearestSpot(r, c, spots) {
+                let min = Infinity;
+                for(const spot of spots) {
+                    const d = Math.hypot(spot.c - c, spot.r - r);
+                    if(d < min) min = d;
+                }
+                return min;
+            }
+            function isValidPosition(r, c, forSpawn = true) {
+                if(!isTilePassable(r, c, false)) return false;
+                const dirs = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+                let hasExit = false;
+                for(const d of dirs) {
+                    const nr = r + d.dr, nc = c + d.dc;
+                    if(nr>=0 && nr<MAP_ROWS && nc>=0 && nc<MAP_COLS && isTilePassable(nr, nc, false)) {
+                        hasExit = true;
+                        break;
+                    }
+                }
+                if(!hasExit) return false;
+                if(forSpawn) {
+                    // Не рядом с дверью
+                    if(isNearDoor(r, c, 2)) return false;
+                }
+                return true;
+            }
+            
+            function getValidSpawnPosition(excludeSpots = []) {
+                // Сначала пробуем случайные
+                for(let attempt=0; attempt<200; attempt++) {
+                    const r = 2 + Math.floor(Math.random() * (MAP_ROWS - 4));
+                    const c = 2 + Math.floor(Math.random() * (MAP_COLS - 4));
+                    if(mapData[r][c] === FLOOR && isValidPosition(r, c, true)) {
+                        if(excludeSpots.length === 0 || distanceToNearestSpot(r, c, excludeSpots) >= 3) {
+                            return {r, c};
+                        }
+                    }
+                }
+                // Линейный поиск
+                for(let r=2; r<MAP_ROWS-2; r++) {
+                    for(let c=2; c<MAP_COLS-2; c++) {
+                        if(mapData[r][c] === FLOOR && isValidPosition(r, c, true)) {
+                            if(excludeSpots.length === 0 || distanceToNearestSpot(r, c, excludeSpots) >= 3) {
+                                return {r, c};
+                            }
+                        }
+                    }
+                }
+                return {r: 3, c: 3};
+            }
+            
             function initDoorStates() {
                 doorStates = {};
                 for(let r=0; r<MAP_ROWS; r++) for(let c=0; c<MAP_COLS; c++) {
                     const tile = mapData[r][c];
                     if(tile === DOOR_UNLOCKED) doorStates[`${r},${c}`] = {locked:false, closed:true, keyId:-1};
-                    else if(tile === DOOR_LOCKED) doorStates[`${r},${c}`] = {locked:true, closed:true, keyId: c < MAP_COLS/2 ? 0 : 1};
+                    else if(tile === DOOR_LOCKED) doorStates[`${r},${c}`] = {locked:true, closed:true, keyId: Math.floor(Math.random() * 3)};
                     else if(tile === EXIT_DOOR) doorStates[`${r},${c}`] = {locked:true, closed:true, keyId:2, isExit:true};
                 }
             }
@@ -213,67 +229,82 @@
 
             let pickupItems = [];
             let playerInventory = [];
+            let hidingSpots = [];
+            
             function initPickupItems() {
                 pickupItems = [];
-                for(let r=0; r<MAP_ROWS; r++) for(let c=0; c<MAP_COLS; c++) {
-                    if(mapData[r][c] === KEY_SPAWN) {
-                        let keyId;
-                        if(r <= 4 && c < 8) keyId = 0;
-                        else if(r <= 4 && c > 13) keyId = 1;
-                        else keyId = 2;
-                        pickupItems.push({ worldX: c*TILE_SIZE+TILE_SIZE/2, worldY: r*TILE_SIZE+TILE_SIZE/2, keyId, collected:false });
+                hidingSpots = [];
+                // Сначала ключи
+                for(let i=0; i<6; i++) {
+                    const pos = getValidSpawnPosition(hidingSpots);
+                    if(mapData[pos.r][pos.c] === FLOOR) {
+                        const keyId = Math.floor(Math.random() * 3);
+                        pickupItems.push({ worldX: pos.c*TILE_SIZE+TILE_SIZE/2, worldY: pos.r*TILE_SIZE+TILE_SIZE/2, keyId, collected:false });
                     }
+                }
+                // Прятки
+                for(let i=0; i<8; i++) {
+                    const pos = getValidSpawnPosition(hidingSpots);
+                    if(mapData[pos.r][pos.c] === FLOOR) {
+                        mapData[pos.r][pos.c] = HIDING_SPOT;
+                        hidingSpots.push({r: pos.r, c: pos.c});
+                    }
+                }
+                // Выход
+                const exitR = MAP_ROWS - 3, exitC = MAP_COLS - 3;
+                if(mapData[exitR][exitC] === FLOOR || mapData[exitR][exitC] === HIDING_SPOT) {
+                    mapData[exitR][exitC] = EXIT_DOOR;
                 }
             }
 
             let player = {
-                x: 3*TILE_SIZE+TILE_SIZE/2, y: 2*TILE_SIZE+TILE_SIZE/2,
-                vx:0, vy:0, radius:14, isRunning:false, isHiding:false,
+                x: 3*TILE_SIZE+TILE_SIZE/2, y: 3*TILE_SIZE+TILE_SIZE/2,
+                vx:0, vy:0, radius:16, isRunning:false, isHiding:false,
                 hidingSpotRef:null, lastFootstepTime:0, damageCooldown:0, invincibleTimer:0,
-                facingAngle: Math.PI
+                facingAngle: Math.PI/2
             };
             function resetPlayer() {
-                player.x = 3*TILE_SIZE+TILE_SIZE/2; player.y = 2*TILE_SIZE+TILE_SIZE/2;
+                const pos = getValidSpawnPosition();
+                player.x = pos.c*TILE_SIZE+TILE_SIZE/2;
+                player.y = pos.r*TILE_SIZE+TILE_SIZE/2;
                 player.vx=0; player.vy=0; player.isRunning=false; player.isHiding=false;
                 player.hidingSpotRef=null; player.lastFootstepTime=performance.now()/1000;
-                player.damageCooldown=0; player.invincibleTimer=1.5; player.facingAngle=Math.PI;
+                player.damageCooldown=0; player.invincibleTimer=1.5; player.facingAngle=Math.PI/2;
                 playerInventory.length = 0;
-                initPickupItems(); initDoorStates();
             }
             function getPlayerGrid() { return { r: Math.floor(player.y/TILE_SIZE), c: Math.floor(player.x/TILE_SIZE) }; }
             function isPlayerNearHidingSpot() {
                 const pg = getPlayerGrid();
-                for(let dr=-1; dr<=1; dr++) for(let dc=-1; dc<=1; dc++) {
+                for(let dr=-2; dr<=2; dr++) for(let dc=-2; dc<=2; dc++) {
                     const r=pg.r+dr, c=pg.c+dc;
                     if(r>=0 && r<MAP_ROWS && c>=0 && c<MAP_COLS && mapData[r][c]===HIDING_SPOT) {
                         const hx=c*TILE_SIZE+TILE_SIZE/2, hy=r*TILE_SIZE+TILE_SIZE/2;
-                        if(Math.hypot(player.x-hx, player.y-hy) < TILE_SIZE*0.8) return {r,c};
+                        if(Math.hypot(player.x-hx, player.y-hy) < TILE_SIZE*1.2) return {r,c};
                     }
                 }
                 return null;
             }
 
             let enemy = {
-                x:10*TILE_SIZE+TILE_SIZE/2, y:7*TILE_SIZE+TILE_SIZE/2, radius:18, speed:130,
+                x:15*TILE_SIZE+TILE_SIZE/2, y:10*TILE_SIZE+TILE_SIZE/2, radius:20, speed:130,
                 state:'patrol', patrolWaypoints:[], patrolIndex:0, targetX:0, targetY:0,
                 lastKnownPlayerX:0, lastKnownPlayerY:0, searchTimer:0,
                 idleTimer:0, stateTimer:0, path:[], pathRecalcTimer:0,
                 hearingCooldown:0, playerVisible:false, distanceToPlayer:999
             };
             function setupPatrolWaypoints() {
-                enemy.patrolWaypoints = [
-                    { x:10*TILE_SIZE+TILE_SIZE/2, y:2*TILE_SIZE+TILE_SIZE/2 },
-                    { x:3*TILE_SIZE+TILE_SIZE/2, y:3*TILE_SIZE+TILE_SIZE/2 },
-                    { x:3*TILE_SIZE+TILE_SIZE/2, y:7*TILE_SIZE+TILE_SIZE/2 },
-                    { x:10*TILE_SIZE+TILE_SIZE/2, y:8*TILE_SIZE+TILE_SIZE/2 },
-                    { x:17*TILE_SIZE+TILE_SIZE/2, y:7*TILE_SIZE+TILE_SIZE/2 },
-                    { x:17*TILE_SIZE+TILE_SIZE/2, y:3*TILE_SIZE+TILE_SIZE/2 },
-                    { x:10*TILE_SIZE+TILE_SIZE/2, y:6*TILE_SIZE+TILE_SIZE/2 },
-                    { x:10*TILE_SIZE+TILE_SIZE/2, y:11*TILE_SIZE+TILE_SIZE/2 }
-                ]; enemy.patrolIndex=0;
+                enemy.patrolWaypoints = [];
+                for(let i=0; i<8; i++) {
+                    const pos = getValidSpawnPosition();
+                    enemy.patrolWaypoints.push({ x: pos.c*TILE_SIZE+TILE_SIZE/2, y: pos.r*TILE_SIZE+TILE_SIZE/2 });
+                }
+                enemy.patrolIndex=0;
             }
             function resetEnemy() {
-                enemy.x=10*TILE_SIZE+TILE_SIZE/2; enemy.y=7*TILE_SIZE+TILE_SIZE/2;
+                if(!enemyExists) return;
+                const pos = getValidSpawnPosition();
+                enemy.x = pos.c*TILE_SIZE+TILE_SIZE/2;
+                enemy.y = pos.r*TILE_SIZE+TILE_SIZE/2;
                 enemy.state='patrol'; enemy.patrolIndex=0; enemy.path=[]; enemy.pathRecalcTimer=0;
                 enemy.searchTimer=0; enemy.idleTimer=0; enemy.stateTimer=0; enemy.hearingCooldown=0;
                 enemy.playerVisible=false; enemy.distanceToPlayer=999; enemy.speed=enemyBaseSpeed;
@@ -319,7 +350,6 @@
             const keys={};
             let mobileJoystickActive=false, mobileJoystickId=null, mobileJoystickVec={x:0,y:0};
             let joystickBaseRect = null;
-
             window.addEventListener('keydown', e => {
                 keys[e.key.toLowerCase()]=true;
                 if(e.key==='Escape') gameState = gameState==='playing'?'paused':gameState==='paused'?'playing':gameState;
@@ -330,8 +360,7 @@
 
             joystickZone.addEventListener('pointerdown', e => {
                 e.preventDefault(); initAudio();
-                mobileJoystickActive = true;
-                mobileJoystickId = e.pointerId;
+                mobileJoystickActive = true; mobileJoystickId = e.pointerId;
                 joystickBaseRect = joystickZone.getBoundingClientRect();
                 updateJoystickFromEvent(e);
                 joystickZone.setPointerCapture(e.pointerId);
@@ -340,17 +369,13 @@
                 if(mobileJoystickActive && e.pointerId === mobileJoystickId) updateJoystickFromEvent(e);
             });
             const resetJoystick = () => {
-                mobileJoystickActive = false;
-                mobileJoystickId = null;
+                mobileJoystickActive = false; mobileJoystickId = null;
                 mobileJoystickVec = {x:0, y:0};
-                joystickThumb.style.left = '50%';
-                joystickThumb.style.top = '50%';
+                joystickThumb.style.left = '50%'; joystickThumb.style.top = '50%';
                 joystickThumb.style.transform = 'translate(-50%, -50%)';
                 joystickBaseRect = null;
             };
-            joystickZone.addEventListener('pointerup', e => {
-                if(e.pointerId === mobileJoystickId) resetJoystick();
-            });
+            joystickZone.addEventListener('pointerup', e => { if(e.pointerId === mobileJoystickId) resetJoystick(); });
             joystickZone.addEventListener('pointerleave', resetJoystick);
             joystickZone.addEventListener('pointercancel', resetJoystick);
 
@@ -358,27 +383,18 @@
                 if(!joystickBaseRect) joystickBaseRect = joystickZone.getBoundingClientRect();
                 const centerX = joystickBaseRect.left + joystickBaseRect.width/2;
                 const centerY = joystickBaseRect.top + joystickBaseRect.height/2;
-                const dx = e.clientX - centerX;
-                const dy = e.clientY - centerY;
+                const dx = e.clientX - centerX, dy = e.clientY - centerY;
                 const maxDist = 65;
                 const dist = Math.min(Math.hypot(dx, dy), maxDist);
                 const angle = Math.atan2(dy, dx);
-                mobileJoystickVec = {
-                    x: Math.cos(angle) * (dist / maxDist),
-                    y: Math.sin(angle) * (dist / maxDist)
-                };
-                const thumbX = 50 + (dx / maxDist) * 45;
-                const thumbY = 50 + (dy / maxDist) * 45;
+                mobileJoystickVec = { x: Math.cos(angle) * (dist / maxDist), y: Math.sin(angle) * (dist / maxDist) };
+                const thumbX = 50 + (dx / maxDist) * 45, thumbY = 50 + (dy / maxDist) * 45;
                 joystickThumb.style.left = Math.max(5, Math.min(95, thumbX)) + '%';
                 joystickThumb.style.top = Math.max(5, Math.min(95, thumbY)) + '%';
                 joystickThumb.style.transform = 'translate(-50%, -50%)';
             }
 
-            actionBtn.addEventListener('pointerdown', e => { 
-                e.preventDefault(); 
-                initAudio(); 
-                if(gameState==='playing') handleInteract(); 
-            });
+            actionBtn.addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); if(gameState==='playing') handleInteract(); });
             canvas.addEventListener('click', e => { initAudio(); if(gameState!=='playing') handleMenuClick(e); });
             canvas.addEventListener('touchstart', e => { initAudio(); if(gameState!=='playing') handleMenuClick(e.touches[0]); });
 
@@ -391,14 +407,23 @@
                     playBeep(20,0.2,0.03,'sine'); return;
                 }
                 if(player.isHiding) { player.isHiding=false; player.hidingSpotRef=null; playBeep(30,0.15,0.03,'sine'); return; }
-                for(let dr=-1; dr<=1; dr++) for(let dc=-1; dc<=1; dc++) {
+                for(let dr=-2; dr<=2; dr++) for(let dc=-2; dc<=2; dc++) {
                     const r=pg.r+dr, c=pg.c+dc;
                     if(r<0||r>=MAP_ROWS||c<0||c>=MAP_COLS) continue;
                     const tile=mapData[r][c];
                     if(tile===DOOR_UNLOCKED||tile===DOOR_LOCKED||tile===EXIT_DOOR) {
                         const ds=getDoorState(r,c); if(!ds) continue;
                         const dx=c*TILE_SIZE+TILE_SIZE/2, dy=r*TILE_SIZE+TILE_SIZE/2;
-                        if(Math.hypot(player.x-dx, player.y-dy) < TILE_SIZE*0.9) {
+                        const distToPlayer = Math.hypot(player.x-dx, player.y-dy);
+                        if(distToPlayer < TILE_SIZE*1.5) {
+                            // Проверка: нельзя закрыть дверь, если игрок в проёме
+                            if(!ds.closed && !ds.locked) {
+                                // Пытаемся закрыть
+                                if(distToPlayer < TILE_SIZE/2 + player.radius) {
+                                    // Игрок слишком близко, не даём закрыть
+                                    return;
+                                }
+                            }
                             if(ds.locked) {
                                 const idx=playerInventory.indexOf(ds.keyId);
                                 if(idx>=0) { ds.locked=false; ds.closed=false; playerInventory.splice(idx,1); playKeyPickup(); if(ds.isExit){ gameState='win'; playWinJingle(); } }
@@ -410,42 +435,87 @@
                 }
                 for(const item of pickupItems) {
                     if(item.collected) continue;
-                    if(Math.hypot(player.x-item.worldX, player.y-item.worldY) < TILE_SIZE*0.7) {
+                    if(Math.hypot(player.x-item.worldX, player.y-item.worldY) < TILE_SIZE*1.2) {
                         item.collected=true; playerInventory.push(item.keyId); playKeyPickup(); return;
                     }
                 }
             }
 
+            function getMenuButtons() {
+                const cx = canvas.width/2, cy = canvas.height/2;
+                if(gameState === 'menu') {
+                    return [{ text: 'PLAY', x: cx, y: cy-10, w: 200, h: 40 }];
+                } else if(gameState === 'characterSelect') {
+                    return [
+                        { text: 'FAST (2 HP)', x: cx, y: cy-50, w: 200, h: 40 },
+                        { text: 'BALANCED (3 HP)', x: cx, y: cy, w: 200, h: 40 },
+                        { text: 'TANK (5 HP)', x: cx, y: cy+50, w: 200, h: 40 }
+                    ];
+                } else if(gameState === 'difficultySelect') {
+                    return [
+                        { text: 'PRACTICE - No Enemy', x: cx, y: cy-70, w: 240, h: 40 },
+                        { text: 'EASY - Bright', x: cx, y: cy-20, w: 200, h: 40 },
+                        { text: 'MEDIUM - Dark', x: cx, y: cy+30, w: 200, h: 40 },
+                        { text: 'NIGHTMARE', x: cx, y: cy+80, w: 200, h: 40 }
+                    ];
+                } else if(gameState === 'paused') {
+                    return [
+                        { text: 'RESUME', x: cx, y: cy-20, w: 200, h: 40 },
+                        { text: 'QUIT', x: cx, y: cy+30, w: 200, h: 40 }
+                    ];
+                } else if(gameState === 'death' || gameState === 'win') {
+                    return [{ text: 'RETRY', x: cx, y: cy+30, w: 200, h: 40 }];
+                }
+                return [];
+            }
+
+            function isInsideButton(mx, my, btn) {
+                return mx > btn.x - btn.w/2 && mx < btn.x + btn.w/2 &&
+                       my > btn.y - btn.h/2 && my < btn.y + btn.h/2;
+            }
+
             function handleMenuClick(e) {
-                const rect=canvas.getBoundingClientRect(), scaleX=canvas.width/rect.width, scaleY=canvas.height/rect.height;
-                const mx=(e.clientX-rect.left)*scaleX, my=(e.clientY-rect.top)*scaleY;
-                const cx=canvas.width/2, cy=canvas.height/2;
-                if(gameState==='menu') {
-                    if(mx>cx-90 && mx<cx+90 && my>cy-20 && my<cy+30) gameState='characterSelect';
-                } else if(gameState==='characterSelect') {
-                    const btnY=cy-50;
-                    if(mx>cx-110 && mx<cx+110 && my>btnY-20 && my<btnY+20){ characterType='fast'; playerMaxHP=2; playerSpeed=185; gameState='difficultySelect'; }
-                    if(mx>cx-110 && mx<cx+110 && my>btnY+30 && my<btnY+70){ characterType='balanced'; playerMaxHP=3; playerSpeed=150; gameState='difficultySelect'; }
-                    if(mx>cx-110 && mx<cx+110 && my>btnY+80 && my<btnY+120){ characterType='tank'; playerMaxHP=5; playerSpeed=120; gameState='difficultySelect'; }
-                } else if(gameState==='difficultySelect') {
-                    const btnY=cy-50;
-                    if(mx>cx-110 && mx<cx+110 && my>btnY-20 && my<btnY+20){ difficulty='easy'; lightRadius=999; enemyBaseSpeed=60; enemyHearingRange=180; startGame(); }
-                    if(mx>cx-110 && mx<cx+110 && my>btnY+30 && my<btnY+70){ difficulty='medium'; lightRadius=170; enemyBaseSpeed=130; enemyHearingRange=300; startGame(); }
-                    if(mx>cx-110 && mx<cx+110 && my>btnY+80 && my<btnY+120){ difficulty='nightmare'; lightRadius=150; enemyBaseSpeed=175; enemyHearingRange=420; startGame(); }
-                } else if(gameState==='death'||gameState==='win') {
-                    if(mx>cx-90 && mx<cx+90 && my>cy+30 && my<cy+80){ gameState='menu'; resetPlayer(); resetEnemy(); }
-                } else if(gameState==='paused') {
-                    if(mx>cx-90 && mx<cx+90 && my>cy-20 && my<cy+30) gameState='playing';
-                    if(mx>cx-90 && mx<cx+90 && my>cy+40 && my<cy+90){ gameState='menu'; resetPlayer(); resetEnemy(); }
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const mx = (e.clientX - rect.left) * scaleX;
+                const my = (e.clientY - rect.top) * scaleY;
+                const buttons = getMenuButtons();
+                
+                if(gameState === 'menu' && buttons[0] && isInsideButton(mx,my,buttons[0])) gameState = 'characterSelect';
+                else if(gameState === 'characterSelect') {
+                    if(buttons[0] && isInsideButton(mx,my,buttons[0])) { characterType='fast'; playerMaxHP=2; playerSpeed=185; gameState='difficultySelect'; }
+                    else if(buttons[1] && isInsideButton(mx,my,buttons[1])) { characterType='balanced'; playerMaxHP=3; playerSpeed=150; gameState='difficultySelect'; }
+                    else if(buttons[2] && isInsideButton(mx,my,buttons[2])) { characterType='tank'; playerMaxHP=5; playerSpeed=120; gameState='difficultySelect'; }
+                } else if(gameState === 'difficultySelect') {
+                    if(buttons[0] && isInsideButton(mx,my,buttons[0])) { difficulty='practice'; lightRadius=999; enemyExists=false; startGame(); }
+                    else if(buttons[1] && isInsideButton(mx,my,buttons[1])) { difficulty='easy'; lightRadius=999; enemyBaseSpeed=60; enemyHearingRange=180; enemyExists=true; startGame(); }
+                    else if(buttons[2] && isInsideButton(mx,my,buttons[2])) { difficulty='medium'; lightRadius=200; enemyBaseSpeed=130; enemyHearingRange=350; enemyExists=true; startGame(); }
+                    else if(buttons[3] && isInsideButton(mx,my,buttons[3])) { difficulty='nightmare'; lightRadius=130; enemyBaseSpeed=175; enemyHearingRange=450; enemyExists=true; startGame(); }
+                } else if(gameState === 'paused') {
+                    if(buttons[0] && isInsideButton(mx,my,buttons[0])) gameState = 'playing';
+                    else if(buttons[1] && isInsideButton(mx,my,buttons[1])) { gameState='menu'; }
+                } else if(gameState === 'death' || gameState === 'win') {
+                    if(buttons[0] && isInsideButton(mx,my,buttons[0])) { gameState='menu'; }
                 }
             }
+
             function startGame() {
-                playerHP=playerMaxHP; resetPlayer(); resetEnemy();
-                enemy.speed=enemyBaseSpeed; gameState='playing'; initAudio();
+                playerHP = playerMaxHP;
+                mapData = generateFloor1();
+                initDoorStates();
+                initPickupItems();
+                resetPlayer();
+                if(enemyExists) {
+                    resetEnemy();
+                    enemy.speed = enemyBaseSpeed;
+                }
+                gameState = 'playing';
+                initAudio();
             }
 
             function damagePlayer(amount) {
-                if(player.invincibleTimer>0) return;
+                if(!enemyExists || player.invincibleTimer>0) return;
                 playerHP-=amount; player.damageCooldown=0.8; player.invincibleTimer=1.5; playDamage();
                 if(playerHP<=0){ playerHP=0; gameState='death'; playBeep(25,1.0,0.15,'sawtooth'); }
             }
@@ -483,7 +553,7 @@
                     const now=performance.now()/1000, interval=player.isRunning?0.25:0.45;
                     if(now-player.lastFootstepTime>interval){
                         player.lastFootstepTime=now; playFootstep();
-                        if(player.isRunning && enemy.hearingCooldown<=0){
+                        if(enemyExists && player.isRunning && enemy.hearingCooldown<=0){
                             enemy.lastKnownPlayerX=player.x; enemy.lastKnownPlayerY=player.y;
                             if(enemy.state==='patrol'||enemy.state==='idle'){ enemy.state='investigate'; enemy.stateTimer=3.0; recalcEnemyPath(Math.floor(enemy.lastKnownPlayerY/TILE_SIZE), Math.floor(enemy.lastKnownPlayerX/TILE_SIZE)); }
                             enemy.hearingCooldown=2.0;
@@ -492,7 +562,7 @@
                 }
             }
             function updateEnemyAI(dt) {
-                if(gameState!=='playing') return;
+                if(!enemyExists || gameState!=='playing') return;
                 if(player.isHiding && enemy.state==='chase') {
                     enemy.state='search'; enemy.stateTimer=5.0; enemy.lastKnownPlayerX=player.x; enemy.lastKnownPlayerY=player.y;
                 }
@@ -558,9 +628,10 @@
             function update(dt){
                 if(gameState!=='playing') return;
                 dt=Math.min(dt,0.2);
-                updatePlayer(dt); updateEnemyAI(dt);
-                if(enemy.state==='chase') enemy.speed=Math.min(enemyBaseSpeed*1.6, enemy.speed+dt*2);
-                else enemy.speed=enemyBaseSpeed;
+                updatePlayer(dt); 
+                if(enemyExists) updateEnemyAI(dt);
+                if(enemyExists && enemy.state==='chase') enemy.speed=Math.min(enemyBaseSpeed*1.6, enemy.speed+dt*2);
+                else if(enemyExists) enemy.speed=enemyBaseSpeed;
             }
 
             let cameraX=0, cameraY=0, targetCameraX=0, targetCameraY=0, shakeAmount=0;
@@ -573,7 +644,7 @@
             }
             function worldToScreen(wx,wy){ return { x:wx-cameraX, y:wy-cameraY }; }
             function applyLighting(){
-                if(difficulty==='easy') return;
+                if(difficulty==='practice' || difficulty==='easy') return;
                 const ps = worldToScreen(player.x, player.y);
                 if(player.isHiding){
                     ctx.fillStyle='rgba(0,0,0,0.85)'; ctx.fillRect(0,0,canvas.width,canvas.height); return;
@@ -597,7 +668,7 @@
             function render(){
                 if(!canvas.width||!canvas.height) return;
                 ctx.clearRect(0,0,canvas.width,canvas.height);
-                if(gameState==='menu'||gameState==='characterSelect'||gameState==='difficultySelect'||gameState==='paused'||gameState==='death'||gameState==='win'){
+                if(gameState!=='playing'){
                     renderMenu(); return;
                 }
                 updateCamera();
@@ -626,63 +697,74 @@
                         }
                     }
                 }
-                const es=worldToScreen(enemy.x, enemy.y);
-                if(enemy.playerVisible || (difficulty!=='nightmare' && enemy.distanceToPlayer<lightRadius)){
-                    ctx.fillStyle='#1a0a0a'; ctx.beginPath(); ctx.arc(es.x,es.y,enemy.radius,0,Math.PI*2); ctx.fill();
-                    ctx.fillStyle='#ff0000'; ctx.shadowColor='#ff0000'; ctx.shadowBlur=10;
-                    ctx.beginPath(); ctx.arc(es.x-5,es.y-4,3.5,0,Math.PI*2); ctx.fill();
-                    ctx.beginPath(); ctx.arc(es.x+5,es.y-4,3.5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-                } else if(enemy.distanceToPlayer<lightRadius*2){
-                    ctx.fillStyle='#ff0000'; ctx.shadowColor='#ff0000'; ctx.shadowBlur=15;
-                    ctx.beginPath(); ctx.arc(es.x-4,es.y-3,3,0,Math.PI*2); ctx.fill();
-                    ctx.beginPath(); ctx.arc(es.x+4,es.y-3,3,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+                if(enemyExists) {
+                    const es=worldToScreen(enemy.x, enemy.y);
+                    if(enemy.playerVisible || (difficulty!=='nightmare' && enemy.distanceToPlayer<lightRadius)){
+                        ctx.fillStyle='#1a0a0a'; ctx.beginPath(); ctx.arc(es.x,es.y,enemy.radius,0,Math.PI*2); ctx.fill();
+                        ctx.fillStyle='#ff0000'; ctx.shadowColor='#ff0000'; ctx.shadowBlur=10;
+                        ctx.beginPath(); ctx.arc(es.x-5,es.y-4,3.5,0,Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(es.x+5,es.y-4,3.5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+                    } else if(enemy.distanceToPlayer<lightRadius*2){
+                        ctx.fillStyle='#ff0000'; ctx.shadowColor='#ff0000'; ctx.shadowBlur=15;
+                        ctx.beginPath(); ctx.arc(es.x-4,es.y-3,3,0,Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(es.x+4,es.y-3,3,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+                    }
                 }
                 if(!player.isHiding){ const ps=worldToScreen(player.x,player.y); ctx.fillStyle='#c4a882'; ctx.beginPath(); ctx.arc(ps.x,ps.y,player.radius,0,Math.PI*2); ctx.fill(); }
                 for(const item of pickupItems){ if(item.collected) continue; const is=worldToScreen(item.worldX,item.worldY); ctx.fillStyle='#ffd700'; ctx.shadowColor='#ffd700'; ctx.shadowBlur=12; ctx.beginPath(); ctx.arc(is.x,is.y,8,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0; }
                 applyLighting();
-                const fontSize=canvas.width<500?16:14; ctx.font=`bold ${fontSize}px monospace`; ctx.fillStyle='#fff'; ctx.textAlign='left';
-                ctx.fillText(`HP: ${playerHP}/${playerMaxHP}`,20,35); ctx.fillText(`Keys: ${playerInventory.length?playerInventory.map(k=>['Red','Blue','Gold'][k]).join(','):'none'}`,20,65);
-                ctx.fillText(player.isHiding?'HIDING':'EXPOSED',20,95);
+                const fontSize=canvas.width<500?18:16; ctx.font=`bold ${fontSize}px monospace`; ctx.fillStyle='#fff'; ctx.textAlign='left';
+                ctx.fillText(`HP: ${playerHP}/${playerMaxHP}`,20,40); 
+                ctx.fillText(`Keys: ${playerInventory.length}`,20,70);
+                ctx.fillText(player.isHiding?'HIDING':'EXPOSED',20,100);
+                if(difficulty==='practice') ctx.fillText('PRACTICE MODE',20,130);
             }
             function renderMenu(){
                 ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,canvas.width,canvas.height);
                 const cx=canvas.width/2, cy=canvas.height/2;
-                ctx.fillStyle='#8b0000'; ctx.font='bold 42px monospace'; ctx.textAlign='center'; ctx.fillText('DARK HOUSE',cx,cy-120);
-                if(gameState==='menu'){
-                    ctx.fillStyle='#c4a882'; ctx.font='16px monospace'; ctx.fillText('Survival Horror',cx,cy-85);
-                    drawMenuButton(cx,cy-10,'PLAY');
-                } else if(gameState==='characterSelect'){
-                    drawMenuButton(cx,cy-60,'FAST (2 HP)'); drawMenuButton(cx,cy-10,'BALANCED (3 HP)'); drawMenuButton(cx,cy+40,'TANK (5 HP)');
-                } else if(gameState==='difficultySelect'){
-                    drawMenuButton(cx,cy-60,'EASY - Bright'); drawMenuButton(cx,cy-10,'MEDIUM - Dark'); drawMenuButton(cx,cy+40,'NIGHTMARE');
-                } else if(gameState==='paused'){
-                    drawMenuButton(cx,cy-20,'RESUME'); drawMenuButton(cx,cy+30,'QUIT');
-                } else if(gameState==='death'||gameState==='win'){
-                    ctx.fillStyle=gameState==='death'?'#ff0000':'#ffd700'; ctx.font='bold 38px monospace';
-                    ctx.fillText(gameState==='death'?'YOU DIED':'ESCAPED!',cx,cy-30); drawMenuButton(cx,cy+30,'RETRY');
+                ctx.fillStyle='#8b0000'; ctx.font='bold 36px monospace'; ctx.textAlign='center'; 
+                if(gameState==='menu') {
+                    ctx.fillText('DARK HOUSE', cx, cy-100);
+                    ctx.fillStyle='#c4a882'; ctx.font='14px monospace'; ctx.fillText('Survival Horror', cx, cy-70);
+                } else if(gameState==='characterSelect') {
+                    ctx.fillText('SELECT CHARACTER', cx, cy-100);
+                } else if(gameState==='difficultySelect') {
+                    ctx.fillText('SELECT DIFFICULTY', cx, cy-110);
+                } else if(gameState==='paused') {
+                    ctx.fillText('PAUSED', cx, cy-60);
+                } else if(gameState==='death') {
+                    ctx.fillText('YOU DIED', cx, cy-60);
+                } else if(gameState==='win') {
+                    ctx.fillText('ESCAPED!', cx, cy-60);
                 }
-            }
-            function drawMenuButton(x,y,text){
-                const w=220,h=45; ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.fillRect(x-w/2-2,y-h/2-2,w+4,h+4);
-                ctx.fillStyle='#8b0000'; ctx.fillRect(x-w/2,y-h/2,w,h); ctx.fillStyle='#fff'; ctx.font='bold 16px monospace'; ctx.textAlign='center'; ctx.fillText(text,x,y+5);
+                const buttons = getMenuButtons();
+                buttons.forEach(btn => {
+                    ctx.fillStyle = '#8b0000';
+                    ctx.fillRect(btn.x - btn.w/2, btn.y - btn.h/2, btn.w, btn.h);
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(btn.x - btn.w/2, btn.y - btn.h/2, btn.w, btn.h);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 14px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(btn.text, btn.x, btn.y + 4);
+                });
             }
 
             let lastTime=performance.now();
             function gameLoop(ts){
                 try {
                     let dt=(ts-lastTime)/1000; if(dt>0.3) dt=0.016; lastTime=ts;
-                    if(canvas.width!==container.clientWidth||canvas.height!==container.clientHeight){
-                        resizeCanvas();
-                    }
+                    if(canvas.width!==container.clientWidth||canvas.height!==container.clientHeight) resizeCanvas();
                     update(dt);
-                    if(gameState==='playing' && enemy.distanceToPlayer<lightRadius*0.7 && enemy.state==='chase') shakeAmount=Math.max(shakeAmount,3);
+                    if(gameState==='playing' && enemyExists && enemy.distanceToPlayer<lightRadius*0.7 && enemy.state==='chase') shakeAmount=Math.max(shakeAmount,3);
                     render();
                 } catch(e){ console.error(e); }
                 requestAnimationFrame(gameLoop);
             }
             window.addEventListener('resize', resizeCanvas);
             canvas.addEventListener('contextmenu',e=>e.preventDefault());
-            initDoorStates(); initPickupItems(); resetEnemy(); gameState='menu';
+            initDoorStates(); initPickupItems(); gameState='menu';
             requestAnimationFrame(gameLoop);
         })();
     </script>
