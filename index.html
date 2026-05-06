@@ -42,12 +42,12 @@
         }
         #mobile-controls {
             position: absolute;
-            bottom: 30px;
+            bottom: 40px;
             left: 0;
             width: 100%;
             display: none;
             justify-content: space-between;
-            align-items: flex-end;
+            align-items: center;
             padding: 0 30px;
             pointer-events: none;
             z-index: 20;
@@ -115,7 +115,6 @@
             const joystickThumb = document.getElementById('joystickThumb');
             const actionBtn = document.getElementById('actionBtn');
 
-            // Размер канваса подстраивается под экран
             function resizeCanvas() {
                 canvas.width = container.clientWidth || window.innerWidth;
                 canvas.height = container.clientHeight || window.innerHeight;
@@ -134,7 +133,6 @@
             let playerHP = 3, playerMaxHP = 3, playerSpeed = 150, lightRadius = 180;
             let enemyBaseSpeed = 130, enemyHearingRange = 300;
 
-            // Audio
             let audioCtx = null;
             function initAudio() {
                 try {
@@ -330,11 +328,6 @@
             });
             window.addEventListener('keyup', e => { keys[e.key.toLowerCase()]=false; });
 
-            function getJoystickCenter() {
-                const rect = joystickZone.getBoundingClientRect();
-                return { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
-            }
-
             joystickZone.addEventListener('pointerdown', e => {
                 e.preventDefault(); initAudio();
                 mobileJoystickActive = true;
@@ -350,6 +343,8 @@
                 mobileJoystickActive = false;
                 mobileJoystickId = null;
                 mobileJoystickVec = {x:0, y:0};
+                joystickThumb.style.left = '50%';
+                joystickThumb.style.top = '50%';
                 joystickThumb.style.transform = 'translate(-50%, -50%)';
                 joystickBaseRect = null;
             };
@@ -365,17 +360,17 @@
                 const centerY = joystickBaseRect.top + joystickBaseRect.height/2;
                 const dx = e.clientX - centerX;
                 const dy = e.clientY - centerY;
-                const maxDist = 70;
+                const maxDist = 65;
                 const dist = Math.min(Math.hypot(dx, dy), maxDist);
                 const angle = Math.atan2(dy, dx);
                 mobileJoystickVec = {
                     x: Math.cos(angle) * (dist / maxDist),
                     y: Math.sin(angle) * (dist / maxDist)
                 };
-                const thumbPercentX = 50 + Math.cos(angle) * (dist / maxDist * 50);
-                const thumbPercentY = 50 + Math.sin(angle) * (dist / maxDist * 50);
-                joystickThumb.style.left = thumbPercentX + '%';
-                joystickThumb.style.top = thumbPercentY + '%';
+                const thumbX = 50 + (dx / maxDist) * 45;
+                const thumbY = 50 + (dy / maxDist) * 45;
+                joystickThumb.style.left = Math.max(5, Math.min(95, thumbX)) + '%';
+                joystickThumb.style.top = Math.max(5, Math.min(95, thumbY)) + '%';
                 joystickThumb.style.transform = 'translate(-50%, -50%)';
             }
 
