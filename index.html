@@ -1,772 +1,662 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover">
-    <title>Dark House - Survival Horror</title>
-    <style>
-        * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; }
-        body { background:#000; display:flex; justify-content:center; align-items:center; height:100vh; width:100vw; overflow:hidden; font-family:'Courier New',monospace; touch-action:none; position:fixed; top:0; left:0; }
-        #game-container { position:relative; width:100vw; height:100vh; overflow:hidden; background:#000; }
-        canvas { display:block; width:100%; height:100%; }
-        #mobile-controls { position:absolute; bottom:40px; left:0; width:100%; display:none; justify-content:space-between; align-items:center; padding:0 30px; pointer-events:none; z-index:20; }
-        .joystick-zone { width:180px; height:180px; border-radius:50%; background:rgba(255,255,255,0.1); border:2px solid rgba(255,255,255,0.3); position:relative; pointer-events:auto; flex-shrink:0; }
-        .joystick-thumb { width:65px; height:65px; border-radius:50%; background:rgba(200,160,120,0.85); position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); pointer-events:none; box-shadow:0 0 25px rgba(200,160,120,0.8); }
-        .action-btn { width:90px; height:90px; border-radius:50%; background:rgba(139,0,0,0.75); border:2px solid rgba(200,100,100,0.9); color:#fff; font-size:26px; font-weight:bold; pointer-events:auto; display:flex; align-items:center; justify-content:center; box-shadow:0 0 30px rgba(139,0,0,0.7); cursor:pointer; touch-action:manipulation; flex-shrink:0; }
-        @media (max-width:768px),(pointer:coarse){ #mobile-controls{display:flex;} }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,maximum-scale=1.0,minimum-scale=1.0,viewport-fit=cover">
+<title>Dark House — Survival Horror</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
+body{background:#000;display:flex;justify-content:center;align-items:center;height:100vh;width:100vw;overflow:hidden;font-family:'Courier New',monospace;touch-action:none;position:fixed;top:0;left:0;}
+#gc{position:relative;width:100vw;height:100vh;overflow:hidden;background:#000;}
+canvas{display:block;width:100%;height:100%;}
+#mc{position:absolute;bottom:40px;left:0;width:100%;display:none;justify-content:space-between;align-items:center;padding:0 30px;pointer-events:none;z-index:20;}
+.jz{width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,0.07);border:2px solid rgba(255,255,255,0.18);position:relative;pointer-events:auto;flex-shrink:0;}
+.jt{width:65px;height:65px;border-radius:50%;background:rgba(200,160,120,0.75);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 20px rgba(200,160,120,0.5);}
+.ab{width:90px;height:90px;border-radius:50%;background:rgba(139,0,0,0.7);border:2px solid rgba(200,60,60,0.8);color:#fff;font-size:28px;font-weight:bold;pointer-events:auto;display:flex;align-items:center;justify-content:center;box-shadow:0 0 25px rgba(139,0,0,0.5);cursor:pointer;touch-action:manipulation;flex-shrink:0;}
+@media(max-width:768px),(pointer:coarse){#mc{display:flex;}}
+</style>
 </head>
 <body>
-    <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
-        <div id="mobile-controls">
-            <div class="joystick-zone" id="joystickZone"><div class="joystick-thumb" id="joystickThumb"></div></div>
-            <button class="action-btn" id="actionBtn">E</button>
-        </div>
-    </div>
+<div id="gc">
+  <canvas id="gameCanvas"></canvas>
+  <div id="mc">
+    <div class="jz" id="jz"><div class="jt" id="jt"></div></div>
+    <button class="ab" id="ab">E</button>
+  </div>
+</div>
+<script>
+(function(){'use strict';
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+const cont=document.getElementById('gc');
+const jz=document.getElementById('jz');
+const jt=document.getElementById('jt');
+const ab=document.getElementById('ab');
 
-    <script>
-        (function() {
-            const canvas = document.getElementById('gameCanvas');
-            const ctx = canvas.getContext('2d');
-            const container = document.getElementById('game-container');
-            const joystickZone = document.getElementById('joystickZone');
-            const joystickThumb = document.getElementById('joystickThumb');
-            const actionBtn = document.getElementById('actionBtn');
+// Offscreen canvas for flashlight masking
+const lm=document.createElement('canvas');
+const lctx=lm.getContext('2d');
 
-            function resizeCanvas() {
-                canvas.width = container.clientWidth || window.innerWidth;
-                canvas.height = container.clientHeight || window.innerHeight;
-            }
-            resizeCanvas();
+function resizeCanvas(){
+  canvas.width=cont.clientWidth||window.innerWidth;
+  canvas.height=cont.clientHeight||window.innerHeight;
+  lm.width=canvas.width; lm.height=canvas.height;
+}
+resizeCanvas();
 
-            const TILE_SIZE = 48;
-            const MAP_COLS = 30, MAP_ROWS = 22;
-            const WORLD_W = MAP_COLS * TILE_SIZE, WORLD_H = MAP_ROWS * TILE_SIZE;
-            const FLOOR = 0, WALL = 1, DOOR_UNLOCKED = 2, DOOR_LOCKED = 3, EXIT_DOOR = 4, HIDING_SPOT = 5, KEY_SPAWN = 6;
+// ── CONSTANTS ──────────────────────────────────────────────
+const TS=48; // tile size
+const MC=36,MR=28; // map cols, rows
+const WW=MC*TS,WH=MR*TS;
+const FLOOR=0,WALL=1,DOOR_U=2,DOOR_L=3,DOOR_X=4,HIDE=5;
 
-            let gameState = 'menu';
-            let difficulty = 'medium';
-            let characterType = 'balanced';
-            let playerHP = 3, playerMaxHP = 3, playerSpeed = 150, lightRadius = 200;
-            let enemyBaseSpeed = 130, enemyHearingRange = 300;
-            let enemyExists = true;
+// ── STATE ──────────────────────────────────────────────────
+let gs='menu',diff='medium',charType='balanced';
+let php=3,phpm=3,pspd=155,lr=220;
+let ebs=130,ehr=300,ecount=1;
+let gt=0,sfl=0; // game time, screen flash
 
-            // Audio
-            let audioCtx = null;
-            function initAudio() {
-                try {
-                    if (!audioCtx) audioCtx = new(window.AudioContext || window.webkitAudioContext)();
-                    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-                } catch(e) { audioCtx = null; }
-            }
-            function playBeep(f, d, v = 0.08, t = 'square') {
-                if(!audioCtx) return;
-                try {
-                    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-                    o.type = t; o.frequency.setValueAtTime(f, audioCtx.currentTime);
-                    g.gain.setValueAtTime(v, audioCtx.currentTime);
-                    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + d);
-                    o.connect(g); g.connect(audioCtx.destination);
-                    o.start(); o.stop(audioCtx.currentTime + d);
-                } catch(e) {}
-            }
-            function playNoise(d, v = 0.04) {
-                if(!audioCtx) return;
-                try {
-                    const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * d), audioCtx.sampleRate);
-                    const data = buf.getChannelData(0);
-                    for(let i=0; i<data.length; i++) data[i] = (Math.random()*2-1) * Math.pow(1 - i/data.length, 2);
-                    const src = audioCtx.createBufferSource(), g = audioCtx.createGain();
-                    src.buffer = buf;
-                    g.gain.setValueAtTime(v, audioCtx.currentTime);
-                    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + d);
-                    src.connect(g); g.connect(audioCtx.destination);
-                    src.start();
-                } catch(e) {}
-            }
-            function playFootstep(){ playNoise(0.12,0.03); playBeep(40+Math.random()*30,0.06,0.02,'triangle'); }
-            function playDoorSound(){ playBeep(25,0.3,0.06,'sawtooth'); playNoise(0.15,0.04); }
-            function playKeyPickup(){ playBeep(600,0.1,0.07); playBeep(900,0.15,0.06); }
-            function playDamage(){ playBeep(30,0.4,0.12,'sawtooth'); playNoise(0.3,0.08); }
-            function playHeartbeat(){ playBeep(50,0.2,0.06,'sine'); }
-            function playWinJingle(){ playBeep(400,0.15,0.08); setTimeout(()=>playBeep(600,0.15,0.08),150); setTimeout(()=>playBeep(800,0.25,0.1),300); }
+// ── AUDIO ──────────────────────────────────────────────────
+let ac=null;
+function initAudio(){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac&&ac.state==='suspended')ac.resume();}catch(e){ac=null;}}
+function beep(f,d,v=0.08,t='square'){if(!ac)return;try{const o=ac.createOscillator(),g=ac.createGain();o.type=t;o.frequency.setValueAtTime(f,ac.currentTime);g.gain.setValueAtTime(v,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+function noise(d,v=0.04){if(!ac)return;try{const buf=ac.createBuffer(1,Math.floor(ac.sampleRate*d),ac.sampleRate),data=buf.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,2);const s=ac.createBufferSource(),g=ac.createGain();s.buffer=buf;g.gain.setValueAtTime(v,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);s.connect(g);g.connect(ac.destination);s.start();}catch(e){}}
+const sfx={foot:()=>{noise(0.12,0.025);beep(40+Math.random()*30,0.06,0.015,'triangle');},door:()=>{beep(25,0.3,0.06,'sawtooth');noise(0.15,0.04);},key:()=>{beep(600,0.1,0.07);beep(900,0.15,0.06);},dmg:()=>{beep(30,0.4,0.12,'sawtooth');noise(0.3,0.08);},health:()=>{beep(300,0.1,0.06,'sine');beep(500,0.15,0.07,'sine');},win:()=>{beep(400,0.15,0.08);setTimeout(()=>beep(600,0.15,0.08),150);setTimeout(()=>beep(800,0.25,0.1),300);}};
 
-            function generateFloor1() {
-                const map = [];
-                for(let r=0; r<MAP_ROWS; r++) {
-                    map[r] = [];
-                    for(let c=0; c<MAP_COLS; c++) {
-                        if(r===0 || r===MAP_ROWS-1 || c===0 || c===MAP_COLS-1) map[r][c] = WALL;
-                        else map[r][c] = FLOOR;
-                    }
-                }
-                const walls = [
-                    {r1:1, c1:6, r2:5, c2:6}, {r1:1, c1:12, r2:5, c2:12}, {r1:1, c1:18, r2:5, c2:18}, {r1:1, c1:24, r2:5, c2:24},
-                    {r1:7, c1:6, r2:11, c2:6}, {r1:7, c1:12, r2:11, c2:12}, {r1:7, c1:18, r2:11, c2:18}, {r1:7, c1:24, r2:11, c2:24},
-                    {r1:13, c1:6, r2:17, c2:6}, {r1:13, c1:12, r2:17, c2:12}, {r1:13, c1:18, r2:17, c2:18}, {r1:13, c1:24, r2:17, c2:24},
-                    {r1:19, c1:6, r2:21, c2:6}, {r1:19, c1:12, r2:21, c2:12}, {r1:19, c1:18, r2:21, c2:18}, {r1:19, c1:24, r2:21, c2:24},
-                    {r1:5, c1:1, r2:5, c2:6}, {r1:5, c1:12, r2:5, c2:18}, {r1:5, c1:24, r2:5, c2:29},
-                    {r1:11, c1:1, r2:11, c2:6}, {r1:11, c1:12, r2:11, c2:18}, {r1:11, c1:24, r2:11, c2:29},
-                    {r1:17, c1:1, r2:17, c2:6}, {r1:17, c1:12, r2:17, c2:18}, {r1:17, c1:24, r2:17, c2:29},
-                    {r1:3, c1:8, r2:3, c2:12}, {r1:9, c1:14, r2:9, c2:18},
-                    {r1:15, c1:8, r2:15, c2:12}, {r1:20, c1:14, r2:20, c2:18},
-                    {r1:8, c1:2, r2:10, c2:2}, {r1:14, c1:26, r2:16, c2:26},
-                ];
-                walls.forEach(w => {
-                    for(let r=w.r1; r<=w.r2; r++) {
-                        for(let c=w.c1; c<=w.c2; c++) {
-                            if(r>0 && r<MAP_ROWS-1 && c>0 && c<MAP_COLS-1) map[r][c] = WALL;
-                        }
-                    }
-                });
-                const doorPositions = [
-                    {r:1, c:6}, {r:1, c:12}, {r:1, c:18}, {r:1, c:24},
-                    {r:3, c:6}, {r:3, c:12}, {r:3, c:18}, {r:3, c:24},
-                    {r:7, c:6}, {r:7, c:12}, {r:7, c:18}, {r:7, c:24},
-                    {r:9, c:6}, {r:9, c:12}, {r:9, c:18}, {r:9, c:24},
-                    {r:13, c:6}, {r:13, c:12}, {r:13, c:18}, {r:13, c:24},
-                    {r:15, c:6}, {r:15, c:12}, {r:15, c:18}, {r:15, c:24},
-                    {r:19, c:6}, {r:19, c:12}, {r:19, c:18}, {r:19, c:24},
-                    {r:5, c:3}, {r:5, c:9}, {r:5, c:15}, {r:5, c:21}, {r:5, c:27},
-                    {r:11, c:3}, {r:11, c:9}, {r:11, c:15}, {r:11, c:21}, {r:11, c:27},
-                    {r:17, c:3}, {r:17, c:9}, {r:17, c:15}, {r:17, c:21}, {r:17, c:27},
-                ];
-                doorPositions.forEach(d => {
-                    if(map[d.r] && map[d.r][d.c] === WALL) {
-                        map[d.r][d.c] = Math.random() < 0.5 ? DOOR_UNLOCKED : DOOR_LOCKED;
-                    }
-                });
-                return map;
-            }
+// ── MAP ────────────────────────────────────────────────────
+let map=[],doors={},decos=[];
 
-            let mapData = generateFloor1();
-            let doorStates = {};
-            
-            function isTileDoor(r, c) {
-                const tile = mapData[r][c];
-                return tile === DOOR_UNLOCKED || tile === DOOR_LOCKED || tile === EXIT_DOOR;
-            }
-            function isNearDoor(r, c, minDist = 2) {
-                for(let dr = -minDist; dr <= minDist; dr++) {
-                    for(let dc = -minDist; dc <= minDist; dc++) {
-                        const nr = r + dr, nc = c + dc;
-                        if(nr >=0 && nr < MAP_ROWS && nc >=0 && nc < MAP_COLS && isTileDoor(nr, nc)) return true;
-                    }
-                }
-                return false;
-            }
-            function distanceToNearestSpot(r, c, spots) {
-                let min = Infinity;
-                for(const spot of spots) {
-                    const d = Math.hypot(spot.c - c, spot.r - r);
-                    if(d < min) min = d;
-                }
-                return min;
-            }
-            function isValidPosition(r, c, forSpawn = true) {
-                if(!isTilePassable(r, c, false)) return false;
-                const dirs = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
-                let hasExit = false;
-                for(const d of dirs) {
-                    const nr = r + d.dr, nc = c + d.dc;
-                    if(nr>=0 && nr<MAP_ROWS && nc>=0 && nc<MAP_COLS && isTilePassable(nr, nc, false)) {
-                        hasExit = true;
-                        break;
-                    }
-                }
-                if(!hasExit) return false;
-                if(forSpawn) {
-                    // Не рядом с дверью
-                    if(isNearDoor(r, c, 2)) return false;
-                }
-                return true;
-            }
-            
-            function getValidSpawnPosition(excludeSpots = []) {
-                // Сначала пробуем случайные
-                for(let attempt=0; attempt<200; attempt++) {
-                    const r = 2 + Math.floor(Math.random() * (MAP_ROWS - 4));
-                    const c = 2 + Math.floor(Math.random() * (MAP_COLS - 4));
-                    if(mapData[r][c] === FLOOR && isValidPosition(r, c, true)) {
-                        if(excludeSpots.length === 0 || distanceToNearestSpot(r, c, excludeSpots) >= 3) {
-                            return {r, c};
-                        }
-                    }
-                }
-                // Линейный поиск
-                for(let r=2; r<MAP_ROWS-2; r++) {
-                    for(let c=2; c<MAP_COLS-2; c++) {
-                        if(mapData[r][c] === FLOOR && isValidPosition(r, c, true)) {
-                            if(excludeSpots.length === 0 || distanceToNearestSpot(r, c, excludeSpots) >= 3) {
-                                return {r, c};
-                            }
-                        }
-                    }
-                }
-                return {r: 3, c: 3};
-            }
-            
-            function initDoorStates() {
-                doorStates = {};
-                for(let r=0; r<MAP_ROWS; r++) for(let c=0; c<MAP_COLS; c++) {
-                    const tile = mapData[r][c];
-                    if(tile === DOOR_UNLOCKED) doorStates[`${r},${c}`] = {locked:false, closed:true, keyId:-1};
-                    else if(tile === DOOR_LOCKED) doorStates[`${r},${c}`] = {locked:true, closed:true, keyId: Math.floor(Math.random() * 3)};
-                    else if(tile === EXIT_DOOR) doorStates[`${r},${c}`] = {locked:true, closed:true, keyId:2, isExit:true};
-                }
-            }
-            function getDoorState(r,c) { return doorStates[`${r},${c}`] || null; }
-            function isTilePassable(r, c, forEnemy=false) {
-                if(r<0||r>=MAP_ROWS||c<0||c>=MAP_COLS) return false;
-                const tile = mapData[r][c];
-                if(tile === WALL) return false;
-                if(tile === FLOOR || tile === HIDING_SPOT || tile === KEY_SPAWN) return true;
-                const ds = getDoorState(r,c);
-                if(!ds) return false;
-                return forEnemy ? !ds.locked : !ds.closed;
-            }
+function genMap(){
+  const m=[];
+  for(let r=0;r<MR;r++){m[r]=[];for(let c=0;c<MC;c++)m[r][c]=(r===0||r===MR-1||c===0||c===MC-1)?WALL:FLOOR;}
+  // Wall segments for rooms
+  const ws=[
+    {r1:1,c1:6,r2:7,c2:6},{r1:1,c1:12,r2:7,c2:12},{r1:1,c1:18,r2:7,c2:18},{r1:1,c1:24,r2:7,c2:24},{r1:1,c1:30,r2:7,c2:30},
+    {r1:9,c1:6,r2:14,c2:6},{r1:9,c1:12,r2:14,c2:12},{r1:9,c1:18,r2:14,c2:18},{r1:9,c1:24,r2:14,c2:24},{r1:9,c1:30,r2:14,c2:30},
+    {r1:16,c1:6,r2:21,c2:6},{r1:16,c1:12,r2:21,c2:12},{r1:16,c1:18,r2:21,c2:18},{r1:16,c1:24,r2:21,c2:24},{r1:16,c1:30,r2:21,c2:30},
+    {r1:23,c1:6,r2:27,c2:6},{r1:23,c1:12,r2:27,c2:12},{r1:23,c1:18,r2:27,c2:18},{r1:23,c1:24,r2:27,c2:24},{r1:23,c1:30,r2:27,c2:30},
+    {r1:8,c1:1,r2:8,c2:5},{r1:8,c1:7,r2:8,c2:11},{r1:8,c1:13,r2:8,c2:17},{r1:8,c1:19,r2:8,c2:23},{r1:8,c1:25,r2:8,c2:29},{r1:8,c1:31,r2:8,c2:35},
+    {r1:15,c1:1,r2:15,c2:5},{r1:15,c1:7,r2:15,c2:11},{r1:15,c1:13,r2:15,c2:17},{r1:15,c1:19,r2:15,c2:23},{r1:15,c1:25,r2:15,c2:29},{r1:15,c1:31,r2:15,c2:35},
+    {r1:22,c1:1,r2:22,c2:5},{r1:22,c1:7,r2:22,c2:11},{r1:22,c1:13,r2:22,c2:17},{r1:22,c1:19,r2:22,c2:23},{r1:22,c1:25,r2:22,c2:29},{r1:22,c1:31,r2:22,c2:35},
+    // Extra obstacles
+    {r1:3,c1:8,r2:3,c2:11},{r1:11,c1:14,r2:11,c2:17},{r1:18,c1:8,r2:18,c2:11},
+    {r1:25,c1:20,r2:25,c2:23},{r1:5,c1:2,r2:6,c2:2},{r1:18,c1:32,r2:20,c2:32},
+    {r1:4,c1:26,r2:6,c2:26},{r1:13,c1:3,r2:14,c2:4},
+  ];
+  ws.forEach(w=>{for(let r=w.r1;r<=w.r2;r++)for(let c=w.c1;c<=w.c2;c++)if(r>0&&r<MR-1&&c>0&&c<MC-1)m[r][c]=WALL;});
+  // Doors in walls
+  const dp=[
+    {r:2,c:6},{r:5,c:6},{r:2,c:12},{r:5,c:12},{r:2,c:18},{r:5,c:18},{r:2,c:24},{r:5,c:24},{r:2,c:30},{r:5,c:30},
+    {r:10,c:6},{r:12,c:6},{r:10,c:12},{r:12,c:12},{r:10,c:18},{r:12,c:18},{r:10,c:24},{r:12,c:24},{r:10,c:30},{r:12,c:30},
+    {r:17,c:6},{r:19,c:6},{r:17,c:12},{r:19,c:12},{r:17,c:18},{r:19,c:18},{r:17,c:24},{r:19,c:24},{r:17,c:30},{r:19,c:30},
+    {r:24,c:6},{r:26,c:6},{r:24,c:12},{r:26,c:12},{r:24,c:18},{r:26,c:18},{r:24,c:24},{r:26,c:24},
+    {r:8,c:2},{r:8,c:4},{r:8,c:8},{r:8,c:10},{r:8,c:14},{r:8,c:16},{r:8,c:20},{r:8,c:22},{r:8,c:26},{r:8,c:28},{r:8,c:32},{r:8,c:34},
+    {r:15,c:2},{r:15,c:4},{r:15,c:8},{r:15,c:10},{r:15,c:14},{r:15,c:16},{r:15,c:20},{r:15,c:22},{r:15,c:26},{r:15,c:28},{r:15,c:32},{r:15,c:34},
+    {r:22,c:2},{r:22,c:4},{r:22,c:8},{r:22,c:10},{r:22,c:14},{r:22,c:16},{r:22,c:20},{r:22,c:22},{r:22,c:26},{r:22,c:28},{r:22,c:32},{r:22,c:34},
+  ];
+  dp.forEach(d=>{if(m[d.r]&&m[d.r][d.c]===WALL)m[d.r][d.c]=Math.random()<0.45?DOOR_L:DOOR_U;});
+  return m;
+}
 
-            let pickupItems = [];
-            let playerInventory = [];
-            let hidingSpots = [];
-            
-            function initPickupItems() {
-                pickupItems = [];
-                hidingSpots = [];
-                // Сначала ключи
-                for(let i=0; i<6; i++) {
-                    const pos = getValidSpawnPosition(hidingSpots);
-                    if(mapData[pos.r][pos.c] === FLOOR) {
-                        const keyId = Math.floor(Math.random() * 3);
-                        pickupItems.push({ worldX: pos.c*TILE_SIZE+TILE_SIZE/2, worldY: pos.r*TILE_SIZE+TILE_SIZE/2, keyId, collected:false });
-                    }
-                }
-                // Прятки
-                for(let i=0; i<8; i++) {
-                    const pos = getValidSpawnPosition(hidingSpots);
-                    if(mapData[pos.r][pos.c] === FLOOR) {
-                        mapData[pos.r][pos.c] = HIDING_SPOT;
-                        hidingSpots.push({r: pos.r, c: pos.c});
-                    }
-                }
-                // Выход
-                const exitR = MAP_ROWS - 3, exitC = MAP_COLS - 3;
-                if(mapData[exitR][exitC] === FLOOR || mapData[exitR][exitC] === HIDING_SPOT) {
-                    mapData[exitR][exitC] = EXIT_DOOR;
-                }
-            }
+function isDoor(r,c){const t=map[r]?.[c];return t===DOOR_U||t===DOOR_L||t===DOOR_X;}
+function nearDoor(r,c,d=2){for(let dr=-d;dr<=d;dr++)for(let dc=-d;dc<=d;dc++){const nr=r+dr,nc=c+dc;if(nr>=0&&nr<MR&&nc>=0&&nc<MC&&isDoor(nr,nc))return true;}return false;}
+function passable(r,c,fe=false){if(r<0||r>=MR||c<0||c>=MC)return false;const t=map[r][c];if(t===WALL)return false;if(t===FLOOR||t===HIDE)return true;const ds=doors[`${r},${c}`];if(!ds)return false;return fe?!ds.locked:!ds.closed;}
+function validSpawn(r,c){if(map[r]?.[c]!==FLOOR)return false;if(r<2||r>MR-3||c<2||c>MC-3)return false;if(nearDoor(r,c,2))return false;const dirs=[[-1,0],[1,0],[0,-1],[0,1]];return dirs.some(([dr,dc])=>passable(r+dr,c+dc,false));}
+function getSpawn(excl=[]){
+  for(let i=0;i<300;i++){const r=2+Math.floor(Math.random()*(MR-4)),c=2+Math.floor(Math.random()*(MC-4));if(validSpawn(r,c)&&(excl.length===0||excl.every(e=>Math.hypot(e.c-c,e.r-r)>=4)))return{r,c};}
+  for(let r=2;r<MR-2;r++)for(let c=2;c<MC-2;c++)if(validSpawn(r,c)&&(excl.length===0||excl.every(e=>Math.hypot(e.c-c,e.r-r)>=4)))return{r,c};
+  return{r:3,c:3};
+}
 
-            let player = {
-                x: 3*TILE_SIZE+TILE_SIZE/2, y: 3*TILE_SIZE+TILE_SIZE/2,
-                vx:0, vy:0, radius:16, isRunning:false, isHiding:false,
-                hidingSpotRef:null, lastFootstepTime:0, damageCooldown:0, invincibleTimer:0,
-                facingAngle: Math.PI/2
-            };
-            function resetPlayer() {
-                const pos = getValidSpawnPosition();
-                player.x = pos.c*TILE_SIZE+TILE_SIZE/2;
-                player.y = pos.r*TILE_SIZE+TILE_SIZE/2;
-                player.vx=0; player.vy=0; player.isRunning=false; player.isHiding=false;
-                player.hidingSpotRef=null; player.lastFootstepTime=performance.now()/1000;
-                player.damageCooldown=0; player.invincibleTimer=1.5; player.facingAngle=Math.PI/2;
-                playerInventory.length = 0;
-            }
-            function getPlayerGrid() { return { r: Math.floor(player.y/TILE_SIZE), c: Math.floor(player.x/TILE_SIZE) }; }
-            function isPlayerNearHidingSpot() {
-                const pg = getPlayerGrid();
-                for(let dr=-2; dr<=2; dr++) for(let dc=-2; dc<=2; dc++) {
-                    const r=pg.r+dr, c=pg.c+dc;
-                    if(r>=0 && r<MAP_ROWS && c>=0 && c<MAP_COLS && mapData[r][c]===HIDING_SPOT) {
-                        const hx=c*TILE_SIZE+TILE_SIZE/2, hy=r*TILE_SIZE+TILE_SIZE/2;
-                        if(Math.hypot(player.x-hx, player.y-hy) < TILE_SIZE*1.2) return {r,c};
-                    }
-                }
-                return null;
-            }
+function initDoors(){
+  doors={};
+  for(let r=0;r<MR;r++)for(let c=0;c<MC;c++){
+    const t=map[r][c];
+    if(t===DOOR_U)doors[`${r},${c}`]={locked:false,closed:true,keyId:-1};
+    else if(t===DOOR_L)doors[`${r},${c}`]={locked:true,closed:true,keyId:Math.floor(Math.random()*3)};
+    else if(t===DOOR_X)doors[`${r},${c}`]={locked:true,closed:true,keyId:2,isExit:true};
+  }
+}
+function ds(r,c){return doors[`${r},${c}`]||null;}
 
-            let enemy = {
-                x:15*TILE_SIZE+TILE_SIZE/2, y:10*TILE_SIZE+TILE_SIZE/2, radius:20, speed:130,
-                state:'patrol', patrolWaypoints:[], patrolIndex:0, targetX:0, targetY:0,
-                lastKnownPlayerX:0, lastKnownPlayerY:0, searchTimer:0,
-                idleTimer:0, stateTimer:0, path:[], pathRecalcTimer:0,
-                hearingCooldown:0, playerVisible:false, distanceToPlayer:999
-            };
-            function setupPatrolWaypoints() {
-                enemy.patrolWaypoints = [];
-                for(let i=0; i<8; i++) {
-                    const pos = getValidSpawnPosition();
-                    enemy.patrolWaypoints.push({ x: pos.c*TILE_SIZE+TILE_SIZE/2, y: pos.r*TILE_SIZE+TILE_SIZE/2 });
-                }
-                enemy.patrolIndex=0;
-            }
-            function resetEnemy() {
-                if(!enemyExists) return;
-                const pos = getValidSpawnPosition();
-                enemy.x = pos.c*TILE_SIZE+TILE_SIZE/2;
-                enemy.y = pos.r*TILE_SIZE+TILE_SIZE/2;
-                enemy.state='patrol'; enemy.patrolIndex=0; enemy.path=[]; enemy.pathRecalcTimer=0;
-                enemy.searchTimer=0; enemy.idleTimer=0; enemy.stateTimer=0; enemy.hearingCooldown=0;
-                enemy.playerVisible=false; enemy.distanceToPlayer=999; enemy.speed=enemyBaseSpeed;
-                setupPatrolWaypoints();
-                if(enemy.patrolWaypoints.length>0){ enemy.targetX=enemy.patrolWaypoints[0].x; enemy.targetY=enemy.patrolWaypoints[0].y; }
-            }
-            function buildPassabilityGrid(forEnemy=false) {
-                const grid=[];
-                for(let r=0; r<MAP_ROWS; r++) { grid[r]=[]; for(let c=0; c<MAP_COLS; c++) grid[r][c]=isTilePassable(r,c,forEnemy); }
-                return grid;
-            }
-            function bfs(startR,startC,targetR,targetC,passGrid) {
-                if(startR===targetR && startC===targetC) return [{r:startR,c:startC}];
-                if(!passGrid[startR]?.[startC] || !passGrid[targetR]?.[targetC]) return null;
-                const queue=[{r:startR,c:startC}], visited=new Set(), parent={}, key=(r,c)=>`${r},${c}`;
-                visited.add(key(startR,startC));
-                const dirs=[{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
-                while(queue.length) {
-                    const curr=queue.shift();
-                    if(curr.r===targetR && curr.c===targetC) {
-                        const path=[]; let node=curr;
-                        while(node){ path.unshift({r:node.r,c:node.c}); node=parent[key(node.r,node.c)]; }
-                        return path;
-                    }
-                    for(const d of dirs) {
-                        const nr=curr.r+d.dr, nc=curr.c+d.dc, nk=key(nr,nc);
-                        if(nr>=0 && nr<MAP_ROWS && nc>=0 && nc<MAP_COLS && passGrid[nr][nc] && !visited.has(nk)) {
-                            visited.add(nk); parent[nk]=curr; queue.push({r:nr,c:nc});
-                        }
-                    }
-                }
-                return null;
-            }
-            function getEnemyGrid(){ return {r:Math.round((enemy.y-TILE_SIZE/2)/TILE_SIZE), c:Math.round((enemy.x-TILE_SIZE/2)/TILE_SIZE)}; }
-            function clampGrid(r,c){ return {r:Math.max(0,Math.min(MAP_ROWS-1,r)), c:Math.max(0,Math.min(MAP_COLS-1,c))}; }
-            function recalcEnemyPath(targetR,targetC) {
-                const start=clampGrid(getEnemyGrid().r, getEnemyGrid().c);
-                const target=clampGrid(targetR,targetC);
-                const path=bfs(start.r,start.c,target.r,target.c,buildPassabilityGrid(true));
-                enemy.path = path ? (path.length>1 ? path.slice(1) : []) : [];
-            }
+function initDecos(){
+  decos=[];
+  for(let i=0;i<35;i++){
+    for(let a=0;a<100;a++){const r=1+Math.floor(Math.random()*(MR-2)),c=1+Math.floor(Math.random()*(MC-2));if(map[r][c]===FLOOR){decos.push({r,c,rot:Math.random()*Math.PI*2,sc:0.3+Math.random()*0.7,v:Math.floor(Math.random()*4)});break;}}
+  }
+}
 
-            const keys={};
-            let mobileJoystickActive=false, mobileJoystickId=null, mobileJoystickVec={x:0,y:0};
-            let joystickBaseRect = null;
-            window.addEventListener('keydown', e => {
-                keys[e.key.toLowerCase()]=true;
-                if(e.key==='Escape') gameState = gameState==='playing'?'paused':gameState==='paused'?'playing':gameState;
-                if(e.key.toLowerCase()==='e' && gameState==='playing') handleInteract();
-                initAudio();
-            });
-            window.addEventListener('keyup', e => { keys[e.key.toLowerCase()]=false; });
+// ── PARTICLES ──────────────────────────────────────────────
+let parts=[];
+function spawnParts(x,y,type,n=5){
+  const cfg={blood:{col:'rgba(170,0,0,0.85)',sz:3,g:60},dust:{col:'rgba(140,110,70,0.45)',sz:2,g:0},spark:{col:'rgba(255,210,80,0.9)',sz:2,g:-20}};
+  const c=cfg[type]||cfg.spark;
+  for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=30+Math.random()*90,life=0.35+Math.random()*0.5;
+    parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life,ml:life,col:c.col,sz:c.sz+Math.random()*c.sz,g:c.g});}
+}
+function updParts(dt){for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=p.g*dt;p.vx*=0.94;p.life-=dt;if(p.life<=0)parts.splice(i,1);}}
 
-            joystickZone.addEventListener('pointerdown', e => {
-                e.preventDefault(); initAudio();
-                mobileJoystickActive = true; mobileJoystickId = e.pointerId;
-                joystickBaseRect = joystickZone.getBoundingClientRect();
-                updateJoystickFromEvent(e);
-                joystickZone.setPointerCapture(e.pointerId);
-            });
-            joystickZone.addEventListener('pointermove', e => {
-                if(mobileJoystickActive && e.pointerId === mobileJoystickId) updateJoystickFromEvent(e);
-            });
-            const resetJoystick = () => {
-                mobileJoystickActive = false; mobileJoystickId = null;
-                mobileJoystickVec = {x:0, y:0};
-                joystickThumb.style.left = '50%'; joystickThumb.style.top = '50%';
-                joystickThumb.style.transform = 'translate(-50%, -50%)';
-                joystickBaseRect = null;
-            };
-            joystickZone.addEventListener('pointerup', e => { if(e.pointerId === mobileJoystickId) resetJoystick(); });
-            joystickZone.addEventListener('pointerleave', resetJoystick);
-            joystickZone.addEventListener('pointercancel', resetJoystick);
+// ── ITEMS ──────────────────────────────────────────────────
+let items=[],inv=[],hides=[];
+function initItems(){
+  items=[];hides=[];
+  for(let i=0;i<7;i++){const p=getSpawn(hides);items.push({type:'key',wx:p.c*TS+TS/2,wy:p.r*TS+TS/2,kid:Math.floor(Math.random()*3),got:false});}
+  for(let i=0;i<5;i++){const p=getSpawn();items.push({type:'hp',wx:p.c*TS+TS/2,wy:p.r*TS+TS/2,got:false});}
+  for(let i=0;i<10;i++){const p=getSpawn(hides);if(map[p.r][p.c]===FLOOR){map[p.r][p.c]=HIDE;hides.push({r:p.r,c:p.c});}}
+  // Exit
+  if(map[MR-3][MC-3]===FLOOR||map[MR-3][MC-3]===HIDE)map[MR-3][MC-3]=DOOR_X;
+}
 
-            function updateJoystickFromEvent(e) {
-                if(!joystickBaseRect) joystickBaseRect = joystickZone.getBoundingClientRect();
-                const centerX = joystickBaseRect.left + joystickBaseRect.width/2;
-                const centerY = joystickBaseRect.top + joystickBaseRect.height/2;
-                const dx = e.clientX - centerX, dy = e.clientY - centerY;
-                const maxDist = 65;
-                const dist = Math.min(Math.hypot(dx, dy), maxDist);
-                const angle = Math.atan2(dy, dx);
-                mobileJoystickVec = { x: Math.cos(angle) * (dist / maxDist), y: Math.sin(angle) * (dist / maxDist) };
-                const thumbX = 50 + (dx / maxDist) * 45, thumbY = 50 + (dy / maxDist) * 45;
-                joystickThumb.style.left = Math.max(5, Math.min(95, thumbX)) + '%';
-                joystickThumb.style.top = Math.max(5, Math.min(95, thumbY)) + '%';
-                joystickThumb.style.transform = 'translate(-50%, -50%)';
-            }
+// ── PLAYER ────────────────────────────────────────────────
+let stam=100,maxStam=100,noiseLv=0;
+let player={x:3*TS+TS/2,y:3*TS+TS/2,vx:0,vy:0,rad:14,running:false,hiding:false,hideRef:null,lastStep:0,dmgCD:0,iTimer:0,angle:Math.PI/2};
 
-            actionBtn.addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); if(gameState==='playing') handleInteract(); });
-            canvas.addEventListener('click', e => { initAudio(); if(gameState!=='playing') handleMenuClick(e); });
-            canvas.addEventListener('touchstart', e => { initAudio(); if(gameState!=='playing') handleMenuClick(e.touches[0]); });
+function resetPlayer(){
+  const p=getSpawn();
+  player.x=p.c*TS+TS/2;player.y=p.r*TS+TS/2;
+  player.vx=0;player.vy=0;player.running=false;player.hiding=false;player.hideRef=null;
+  player.lastStep=performance.now()/1000;player.dmgCD=0;player.iTimer=1.5;player.angle=Math.PI/2;
+  inv.length=0;stam=maxStam;noiseLv=0;
+}
+function pg(){return{r:Math.floor(player.y/TS),c:Math.floor(player.x/TS)};}
+function nearHide(){
+  const g=pg();
+  for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++){const r=g.r+dr,c=g.c+dc;if(r>=0&&r<MR&&c>=0&&c<MC&&map[r][c]===HIDE){const hx=c*TS+TS/2,hy=r*TS+TS/2;if(Math.hypot(player.x-hx,player.y-hy)<TS*1.2)return{r,c};}}
+  return null;
+}
 
-            function handleInteract() {
-                if(gameState!=='playing') return;
-                const pg=getPlayerGrid();
-                const hideInfo=isPlayerNearHidingSpot();
-                if(hideInfo && !player.isHiding) {
-                    player.isHiding=true; player.hidingSpotRef=hideInfo; player.vx=0; player.vy=0;
-                    playBeep(20,0.2,0.03,'sine'); return;
-                }
-                if(player.isHiding) { player.isHiding=false; player.hidingSpotRef=null; playBeep(30,0.15,0.03,'sine'); return; }
-                for(let dr=-2; dr<=2; dr++) for(let dc=-2; dc<=2; dc++) {
-                    const r=pg.r+dr, c=pg.c+dc;
-                    if(r<0||r>=MAP_ROWS||c<0||c>=MAP_COLS) continue;
-                    const tile=mapData[r][c];
-                    if(tile===DOOR_UNLOCKED||tile===DOOR_LOCKED||tile===EXIT_DOOR) {
-                        const ds=getDoorState(r,c); if(!ds) continue;
-                        const dx=c*TILE_SIZE+TILE_SIZE/2, dy=r*TILE_SIZE+TILE_SIZE/2;
-                        const distToPlayer = Math.hypot(player.x-dx, player.y-dy);
-                        if(distToPlayer < TILE_SIZE*1.5) {
-                            // Проверка: нельзя закрыть дверь, если игрок в проёме
-                            if(!ds.closed && !ds.locked) {
-                                // Пытаемся закрыть
-                                if(distToPlayer < TILE_SIZE/2 + player.radius) {
-                                    // Игрок слишком близко, не даём закрыть
-                                    return;
-                                }
-                            }
-                            if(ds.locked) {
-                                const idx=playerInventory.indexOf(ds.keyId);
-                                if(idx>=0) { ds.locked=false; ds.closed=false; playerInventory.splice(idx,1); playKeyPickup(); if(ds.isExit){ gameState='win'; playWinJingle(); } }
-                                else playBeep(80,0.2,0.05,'square');
-                            } else { ds.closed=!ds.closed; playDoorSound(); }
-                            return;
-                        }
-                    }
-                }
-                for(const item of pickupItems) {
-                    if(item.collected) continue;
-                    if(Math.hypot(player.x-item.worldX, player.y-item.worldY) < TILE_SIZE*1.2) {
-                        item.collected=true; playerInventory.push(item.keyId); playKeyPickup(); return;
-                    }
-                }
-            }
+// ── ENEMIES ───────────────────────────────────────────────
+let enemies=[];
+function mkEnemy(idx){
+  const p=getSpawn([pg()]);
+  const e={x:p.c*TS+TS/2,y:p.r*TS+TS/2,rad:21,spd:ebs,state:'patrol',wp:[],wi:0,tx:0,ty:0,lkx:0,lky:0,stimer:0,itimer:0,stimer2:0,path:[],prt:0,hcool:0,visible:false,dist:999,eyeP:Math.random()*Math.PI*2,alertL:0,id:idx};
+  setupWP(e);return e;
+}
+function setupWP(e){e.wp=[];for(let i=0;i<8;i++){const p=getSpawn();e.wp.push({x:p.c*TS+TS/2,y:p.r*TS+TS/2});}e.wi=0;if(e.wp.length){{e.tx=e.wp[0].x;e.ty=e.wp[0].y;}}}
+function resetEnemies(){enemies=[];for(let i=0;i<ecount;i++)enemies.push(mkEnemy(i));}
 
-            function getMenuButtons() {
-                const cx = canvas.width/2, cy = canvas.height/2;
-                if(gameState === 'menu') {
-                    return [{ text: 'PLAY', x: cx, y: cy-10, w: 200, h: 40 }];
-                } else if(gameState === 'characterSelect') {
-                    return [
-                        { text: 'FAST (2 HP)', x: cx, y: cy-50, w: 200, h: 40 },
-                        { text: 'BALANCED (3 HP)', x: cx, y: cy, w: 200, h: 40 },
-                        { text: 'TANK (5 HP)', x: cx, y: cy+50, w: 200, h: 40 }
-                    ];
-                } else if(gameState === 'difficultySelect') {
-                    return [
-                        { text: 'PRACTICE - No Enemy', x: cx, y: cy-70, w: 240, h: 40 },
-                        { text: 'EASY - Bright', x: cx, y: cy-20, w: 200, h: 40 },
-                        { text: 'MEDIUM - Dark', x: cx, y: cy+30, w: 200, h: 40 },
-                        { text: 'NIGHTMARE', x: cx, y: cy+80, w: 200, h: 40 }
-                    ];
-                } else if(gameState === 'paused') {
-                    return [
-                        { text: 'RESUME', x: cx, y: cy-20, w: 200, h: 40 },
-                        { text: 'QUIT', x: cx, y: cy+30, w: 200, h: 40 }
-                    ];
-                } else if(gameState === 'death' || gameState === 'win') {
-                    return [{ text: 'RETRY', x: cx, y: cy+30, w: 200, h: 40 }];
-                }
-                return [];
-            }
+function passGrid(fe=false){const g=[];for(let r=0;r<MR;r++){g[r]=[];for(let c=0;c<MC;c++)g[r][c]=passable(r,c,fe);}return g;}
+function bfs(sr,sc,tr,tc,g){
+  if(sr===tr&&sc===tc)return[{r:sr,c:sc}];
+  if(!g[sr]?.[sc]||!g[tr]?.[tc])return null;
+  const q=[{r:sr,c:sc}],vis=new Set(),par={},k=(r,c)=>`${r},${c}`;
+  vis.add(k(sr,sc));
+  const dirs=[[-1,0],[1,0],[0,-1],[0,1]];
+  while(q.length){
+    const cur=q.shift();if(cur.r===tr&&cur.c===tc){const path=[];let n=cur;while(n){path.unshift({r:n.r,c:n.c});n=par[k(n.r,n.c)];}return path;}
+    for(const[dr,dc]of dirs){const nr=cur.r+dr,nc=cur.c+dc,nk=k(nr,nc);if(nr>=0&&nr<MR&&nc>=0&&nc<MC&&g[nr][nc]&&!vis.has(nk)){vis.add(nk);par[nk]=cur;q.push({r:nr,c:nc});}}
+  }return null;
+}
+function clamp(r,c){return{r:Math.max(0,Math.min(MR-1,r)),c:Math.max(0,Math.min(MC-1,c))};}
+function eg(e){return{r:Math.round((e.y-TS/2)/TS),c:Math.round((e.x-TS/2)/TS)};}
+function recalcPath(e,tr,tc){const s=clamp(eg(e).r,eg(e).c),t=clamp(tr,tc),path=bfs(s.r,s.c,t.r,t.c,passGrid(true));e.path=path?(path.length>1?path.slice(1):[]):[];}
 
-            function isInsideButton(mx, my, btn) {
-                return mx > btn.x - btn.w/2 && mx < btn.x + btn.w/2 &&
-                       my > btn.y - btn.h/2 && my < btn.y + btn.h/2;
-            }
+// ── INPUT ─────────────────────────────────────────────────
+const keys={};
+let jActive=false,jId=null,jVec={x:0,y:0},jRect=null;
 
-            function handleMenuClick(e) {
-                const rect = canvas.getBoundingClientRect();
-                const scaleX = canvas.width / rect.width;
-                const scaleY = canvas.height / rect.height;
-                const mx = (e.clientX - rect.left) * scaleX;
-                const my = (e.clientY - rect.top) * scaleY;
-                const buttons = getMenuButtons();
-                
-                if(gameState === 'menu' && buttons[0] && isInsideButton(mx,my,buttons[0])) gameState = 'characterSelect';
-                else if(gameState === 'characterSelect') {
-                    if(buttons[0] && isInsideButton(mx,my,buttons[0])) { characterType='fast'; playerMaxHP=2; playerSpeed=185; gameState='difficultySelect'; }
-                    else if(buttons[1] && isInsideButton(mx,my,buttons[1])) { characterType='balanced'; playerMaxHP=3; playerSpeed=150; gameState='difficultySelect'; }
-                    else if(buttons[2] && isInsideButton(mx,my,buttons[2])) { characterType='tank'; playerMaxHP=5; playerSpeed=120; gameState='difficultySelect'; }
-                } else if(gameState === 'difficultySelect') {
-                    if(buttons[0] && isInsideButton(mx,my,buttons[0])) { difficulty='practice'; lightRadius=999; enemyExists=false; startGame(); }
-                    else if(buttons[1] && isInsideButton(mx,my,buttons[1])) { difficulty='easy'; lightRadius=999; enemyBaseSpeed=60; enemyHearingRange=180; enemyExists=true; startGame(); }
-                    else if(buttons[2] && isInsideButton(mx,my,buttons[2])) { difficulty='medium'; lightRadius=200; enemyBaseSpeed=130; enemyHearingRange=350; enemyExists=true; startGame(); }
-                    else if(buttons[3] && isInsideButton(mx,my,buttons[3])) { difficulty='nightmare'; lightRadius=130; enemyBaseSpeed=175; enemyHearingRange=450; enemyExists=true; startGame(); }
-                } else if(gameState === 'paused') {
-                    if(buttons[0] && isInsideButton(mx,my,buttons[0])) gameState = 'playing';
-                    else if(buttons[1] && isInsideButton(mx,my,buttons[1])) { gameState='menu'; }
-                } else if(gameState === 'death' || gameState === 'win') {
-                    if(buttons[0] && isInsideButton(mx,my,buttons[0])) { gameState='menu'; }
-                }
-            }
+window.addEventListener('keydown',e=>{
+  keys[e.key.toLowerCase()]=true;
+  if(e.key==='Escape'){if(gs==='playing')gs='paused';else if(gs==='paused')gs='playing';}
+  if(e.key.toLowerCase()==='e'&&gs==='playing')interact();
+  initAudio();
+});
+window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 
-            function startGame() {
-                playerHP = playerMaxHP;
-                mapData = generateFloor1();
-                initDoorStates();
-                initPickupItems();
-                resetPlayer();
-                if(enemyExists) {
-                    resetEnemy();
-                    enemy.speed = enemyBaseSpeed;
-                }
-                gameState = 'playing';
-                initAudio();
-            }
+jz.addEventListener('pointerdown',e=>{e.preventDefault();initAudio();jActive=true;jId=e.pointerId;jRect=jz.getBoundingClientRect();updJoy(e);jz.setPointerCapture(e.pointerId);});
+jz.addEventListener('pointermove',e=>{if(jActive&&e.pointerId===jId)updJoy(e);});
+const resetJoy=()=>{jActive=false;jId=null;jVec={x:0,y:0};jt.style.left='50%';jt.style.top='50%';jt.style.transform='translate(-50%,-50%)';jRect=null;};
+jz.addEventListener('pointerup',e=>{if(e.pointerId===jId)resetJoy();});
+jz.addEventListener('pointerleave',resetJoy);jz.addEventListener('pointercancel',resetJoy);
+function updJoy(e){if(!jRect)jRect=jz.getBoundingClientRect();const cx=jRect.left+jRect.width/2,cy=jRect.top+jRect.height/2,dx=e.clientX-cx,dy=e.clientY-cy,md=65,d=Math.min(Math.hypot(dx,dy),md),a=Math.atan2(dy,dx);jVec={x:Math.cos(a)*(d/md),y:Math.sin(a)*(d/md)};const tx=50+(dx/md)*45,ty=50+(dy/md)*45;jt.style.left=Math.max(5,Math.min(95,tx))+'%';jt.style.top=Math.max(5,Math.min(95,ty))+'%';jt.style.transform='translate(-50%,-50%)';}
+ab.addEventListener('pointerdown',e=>{e.preventDefault();initAudio();if(gs==='playing')interact();});
+canvas.addEventListener('click',e=>{initAudio();menuClick(e);});
+canvas.addEventListener('touchstart',e=>{initAudio();menuClick(e.touches[0]);},{passive:true});
 
-            function damagePlayer(amount) {
-                if(!enemyExists || player.invincibleTimer>0) return;
-                playerHP-=amount; player.damageCooldown=0.8; player.invincibleTimer=1.5; playDamage();
-                if(playerHP<=0){ playerHP=0; gameState='death'; playBeep(25,1.0,0.15,'sawtooth'); }
-            }
-            function updatePlayer(dt) {
-                if(gameState!=='playing'||player.isHiding){ player.vx=0; player.vy=0; return; }
-                if(player.damageCooldown>0) player.damageCooldown-=dt;
-                if(player.invincibleTimer>0) player.invincibleTimer-=dt;
-                let inputX=0,inputY=0,running=false;
-                if(mobileJoystickActive){ inputX=mobileJoystickVec.x; inputY=mobileJoystickVec.y; running=Math.hypot(inputX,inputY)>0.7; }
-                if(keys['w']||keys['arrowup']) inputY=-1; if(keys['s']||keys['arrowdown']) inputY=1;
-                if(keys['a']||keys['arrowleft']) inputX=-1; if(keys['d']||keys['arrowright']) inputX=1;
-                if(keys['shift']) running=true;
-                const mag=Math.hypot(inputX,inputY); if(mag>1){ inputX/=mag; inputY/=mag; }
-                if(mag>0.1) player.facingAngle = Math.atan2(inputY, inputX);
-                const speed=running?playerSpeed*1.5:playerSpeed;
-                player.isRunning=running && mag>0.3; player.vx=inputX*speed; player.vy=inputY*speed;
-                const newX=player.x+player.vx*dt, newY=player.y+player.vy*dt;
-                const checkColl=(px,py)=>{
-                    const gr=Math.floor(py/TILE_SIZE), gc=Math.floor(px/TILE_SIZE);
-                    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++) {
-                        const r=gr+dr,c=gc+dc;
-                        if(r>=0&&r<MAP_ROWS&&c>=0&&c<MAP_COLS&&!isTilePassable(r,c,false)){
-                            const tx=c*TILE_SIZE,ty=r*TILE_SIZE;
-                            const cx=Math.max(tx,Math.min(px,tx+TILE_SIZE)), cy=Math.max(ty,Math.min(py,ty+TILE_SIZE));
-                            if(Math.hypot(px-cx,py-cy)<player.radius) return true;
-                        }
-                    }
-                    return false;
-                };
-                if(!checkColl(newX,player.y)) player.x=newX;
-                if(!checkColl(player.x,newY)) player.y=newY;
-                player.x=Math.max(player.radius,Math.min(WORLD_W-player.radius,player.x));
-                player.y=Math.max(player.radius,Math.min(WORLD_H-player.radius,player.y));
-                if((Math.abs(player.vx)>10||Math.abs(player.vy)>10) && !player.isHiding){
-                    const now=performance.now()/1000, interval=player.isRunning?0.25:0.45;
-                    if(now-player.lastFootstepTime>interval){
-                        player.lastFootstepTime=now; playFootstep();
-                        if(enemyExists && player.isRunning && enemy.hearingCooldown<=0){
-                            enemy.lastKnownPlayerX=player.x; enemy.lastKnownPlayerY=player.y;
-                            if(enemy.state==='patrol'||enemy.state==='idle'){ enemy.state='investigate'; enemy.stateTimer=3.0; recalcEnemyPath(Math.floor(enemy.lastKnownPlayerY/TILE_SIZE), Math.floor(enemy.lastKnownPlayerX/TILE_SIZE)); }
-                            enemy.hearingCooldown=2.0;
-                        }
-                    }
-                }
-            }
-            function updateEnemyAI(dt) {
-                if(!enemyExists || gameState!=='playing') return;
-                if(player.isHiding && enemy.state==='chase') {
-                    enemy.state='search'; enemy.stateTimer=5.0; enemy.lastKnownPlayerX=player.x; enemy.lastKnownPlayerY=player.y;
-                }
-                enemy.hearingCooldown=Math.max(0,enemy.hearingCooldown-dt);
-                enemy.distanceToPlayer=Math.hypot(enemy.x-player.x, enemy.y-player.y);
-                enemy.playerVisible = enemy.distanceToPlayer < lightRadius && !player.isHiding;
-                if(enemy.playerVisible && enemy.state!=='chase'){ enemy.state='chase'; enemy.stateTimer=0; }
-                if(enemy.state==='chase' && !enemy.playerVisible && enemy.stateTimer>3.0){ enemy.state='search'; enemy.stateTimer=6.0; enemy.lastKnownPlayerX=player.x; enemy.lastKnownPlayerY=player.y; }
-                if(enemy.state==='investigate' && enemy.stateTimer<=0){ enemy.state='search'; enemy.stateTimer=4.0; }
-                if(enemy.state==='search' && enemy.stateTimer<=0){ enemy.state='patrol'; enemy.path=[]; }
-                if(enemy.state==='idle' && enemy.idleTimer<=0) enemy.state='patrol';
-                enemy.stateTimer-=dt; if(enemy.state==='idle') enemy.idleTimer-=dt;
-                let targetR,targetC;
-                if(enemy.state==='patrol'){
-                    if(enemy.patrolWaypoints.length===0) setupPatrolWaypoints();
-                    const wp=enemy.patrolWaypoints[enemy.patrolIndex]; enemy.targetX=wp.x; enemy.targetY=wp.y;
-                    targetR=Math.floor(wp.y/TILE_SIZE); targetC=Math.floor(wp.x/TILE_SIZE);
-                    if(Math.hypot(enemy.x-wp.x, enemy.y-wp.y)<TILE_SIZE*0.5){
-                        enemy.patrolIndex=(enemy.patrolIndex+1)%enemy.patrolWaypoints.length;
-                        if(Math.random()<0.3){ enemy.state='idle'; enemy.idleTimer=1.5+Math.random()*2; }
-                    }
-                } else if(enemy.state==='chase'){
-                    enemy.targetX=player.x; enemy.targetY=player.y; targetR=Math.floor(player.y/TILE_SIZE); targetC=Math.floor(player.x/TILE_SIZE);
-                    enemy.lastKnownPlayerX=player.x; enemy.lastKnownPlayerY=player.y;
-                } else {
-                    enemy.targetX=enemy.lastKnownPlayerX; enemy.targetY=enemy.lastKnownPlayerY;
-                    targetR=Math.floor(enemy.lastKnownPlayerY/TILE_SIZE); targetC=Math.floor(enemy.lastKnownPlayerX/TILE_SIZE);
-                    if(enemy.state==='search'){
-                        enemy.searchTimer+=dt;
-                        if(enemy.searchTimer>2.0 && enemy.distanceToPlayer>lightRadius){
-                            const nearbyHides=[];
-                            for(let r=0;r<MAP_ROWS;r++) for(let c=0;c<MAP_COLS;c++){
-                                if(mapData[r][c]===HIDING_SPOT){
-                                    const hx=c*TILE_SIZE+TILE_SIZE/2, hy=r*TILE_SIZE+TILE_SIZE/2;
-                                    const d=Math.hypot(enemy.lastKnownPlayerX-hx, enemy.lastKnownPlayerY-hy);
-                                    if(d<TILE_SIZE*6) nearbyHides.push({r,c,d});
-                                }
-                            }
-                            nearbyHides.sort((a,b)=>a.d-b.d);
-                            if(nearbyHides.length>0){
-                                const h=nearbyHides[Math.floor(enemy.searchTimer/3)%nearbyHides.length];
-                                targetR=h.r; targetC=h.c; enemy.targetX=h.c*TILE_SIZE+TILE_SIZE/2; enemy.targetY=h.r*TILE_SIZE+TILE_SIZE/2;
-                                if(player.isHiding && player.hidingSpotRef && player.hidingSpotRef.r===h.r && player.hidingSpotRef.c===h.c){
-                                    if(Math.random()<0.35){ player.isHiding=false; player.hidingSpotRef=null; damagePlayer(1); enemy.state='chase'; enemy.stateTimer=0; }
-                                }
-                            }
-                        }
-                    }
-                }
-                enemy.pathRecalcTimer-=dt;
-                if(enemy.pathRecalcTimer<=0||enemy.path.length===0){ enemy.pathRecalcTimer=0.3; recalcEnemyPath(clampGrid(targetR,targetC).r, clampGrid(targetR,targetC).c); }
-                let moveSpeed=enemy.speed;
-                if(enemy.state==='chase') moveSpeed*=1.35; else if(enemy.state==='patrol') moveSpeed*=0.55; else if(enemy.state==='idle') moveSpeed=0;
-                if(enemy.path.length>0 && moveSpeed>0){
-                    const next=enemy.path[0]; const wpx=next.c*TILE_SIZE+TILE_SIZE/2, wpy=next.r*TILE_SIZE+TILE_SIZE/2;
-                    const dx=wpx-enemy.x, dy=wpy-enemy.y, dist=Math.hypot(dx,dy);
-                    if(dist<4) enemy.path.shift(); else { enemy.x+=(dx/dist)*moveSpeed*dt; enemy.y+=(dy/dist)*moveSpeed*dt; }
-                }
-                enemy.x=Math.max(enemy.radius,Math.min(WORLD_W-enemy.radius,enemy.x));
-                enemy.y=Math.max(enemy.radius,Math.min(WORLD_H-enemy.radius,enemy.y));
-                if(enemy.distanceToPlayer<player.radius+enemy.radius && !player.isHiding && player.invincibleTimer<=0) damagePlayer(1);
-            }
-            function update(dt){
-                if(gameState!=='playing') return;
-                dt=Math.min(dt,0.2);
-                updatePlayer(dt); 
-                if(enemyExists) updateEnemyAI(dt);
-                if(enemyExists && enemy.state==='chase') enemy.speed=Math.min(enemyBaseSpeed*1.6, enemy.speed+dt*2);
-                else if(enemyExists) enemy.speed=enemyBaseSpeed;
-            }
+function interact(){
+  if(gs!=='playing')return;
+  const g=pg();
+  const hi=nearHide();
+  if(hi&&!player.hiding){player.hiding=true;player.hideRef=hi;player.vx=0;player.vy=0;beep(20,0.2,0.03,'sine');return;}
+  if(player.hiding){player.hiding=false;player.hideRef=null;beep(30,0.15,0.03,'sine');return;}
+  // Doors
+  for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++){
+    const r=g.r+dr,c=g.c+dc;if(r<0||r>=MR||c<0||c>=MC)continue;
+    const t=map[r][c];if(t===DOOR_U||t===DOOR_L||t===DOOR_X){
+      const d=ds(r,c);if(!d)continue;
+      const dx=c*TS+TS/2,dy=r*TS+TS/2;
+      if(Math.hypot(player.x-dx,player.y-dy)<TS*1.5){
+        if(!d.closed&&!d.locked&&Math.hypot(player.x-dx,player.y-dy)<TS/2+player.rad)return;
+        if(d.locked){const idx=inv.indexOf(d.keyId);if(idx>=0){d.locked=false;d.closed=false;inv.splice(idx,1);sfx.key();if(d.isExit){gs='win';sfx.win();}}else{beep(80,0.2,0.05,'square');spawnParts(player.x,player.y,'spark',3);}}
+        else{d.closed=!d.closed;sfx.door();noiseLv=Math.min(100,noiseLv+40);}
+        return;
+      }
+    }
+  }
+  // Items
+  for(const it of items){if(it.got)continue;if(Math.hypot(player.x-it.wx,player.y-it.wy)<TS*1.2){
+    if(it.type==='key'){it.got=true;inv.push(it.kid);sfx.key();spawnParts(it.wx,it.wy,'spark',8);}
+    else if(it.type==='hp'){if(php<phpm){it.got=true;php++;sfx.health();spawnParts(it.wx,it.wy,'spark',6);}else return;}
+    return;
+  }}
+}
 
-            let cameraX=0, cameraY=0, targetCameraX=0, targetCameraY=0, shakeAmount=0;
-            function updateCamera(){
-                targetCameraX=player.x-canvas.width/2; targetCameraY=player.y-canvas.height/2;
-                targetCameraX=Math.max(0,Math.min(WORLD_W-canvas.width,targetCameraX));
-                targetCameraY=Math.max(0,Math.min(WORLD_H-canvas.height,targetCameraY));
-                cameraX+=(targetCameraX-cameraX)*0.08; cameraY+=(targetCameraY-cameraY)*0.08;
-                if(shakeAmount>0){ cameraX+=(Math.random()-0.5)*shakeAmount*2; cameraY+=(Math.random()-0.5)*shakeAmount*2; shakeAmount*=0.85; if(shakeAmount<0.3) shakeAmount=0; }
-            }
-            function worldToScreen(wx,wy){ return { x:wx-cameraX, y:wy-cameraY }; }
-            function applyLighting(){
-                if(difficulty==='practice' || difficulty==='easy') return;
-                const ps = worldToScreen(player.x, player.y);
-                if(player.isHiding){
-                    ctx.fillStyle='rgba(0,0,0,0.85)'; ctx.fillRect(0,0,canvas.width,canvas.height); return;
-                }
-                if(difficulty==='medium'){
-                    const gradient = ctx.createRadialGradient(ps.x, ps.y, lightRadius*0.5, ps.x, ps.y, lightRadius);
-                    gradient.addColorStop(0, 'rgba(0,0,0,0)');
-                    gradient.addColorStop(0.6, 'rgba(0,0,0,0.5)');
-                    gradient.addColorStop(1, 'rgba(0,0,0,0.92)');
-                    ctx.fillStyle = gradient;
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                } else if(difficulty==='nightmare'){
-                    const gradient = ctx.createRadialGradient(ps.x, ps.y, 0, ps.x, ps.y, lightRadius);
-                    gradient.addColorStop(0, 'rgba(0,0,0,0)');
-                    gradient.addColorStop(0.7, 'rgba(0,0,0,0.7)');
-                    gradient.addColorStop(1, 'rgba(0,0,0,0.98)');
-                    ctx.fillStyle = gradient;
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                }
-            }
-            function render(){
-                if(!canvas.width||!canvas.height) return;
-                ctx.clearRect(0,0,canvas.width,canvas.height);
-                if(gameState!=='playing'){
-                    renderMenu(); return;
-                }
-                updateCamera();
-                ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,canvas.width,canvas.height);
-                const sc=Math.max(0,Math.floor(cameraX/TILE_SIZE)-1), ec=Math.min(MAP_COLS-1,Math.ceil((cameraX+canvas.width)/TILE_SIZE)+1);
-                const sr=Math.max(0,Math.floor(cameraY/TILE_SIZE)-1), er=Math.min(MAP_ROWS-1,Math.ceil((cameraY+canvas.height)/TILE_SIZE)+1);
-                for(let r=sr;r<=er;r++) for(let c=sc;c<=ec;c++){
-                    const sx=c*TILE_SIZE-cameraX, sy=r*TILE_SIZE-cameraY;
-                    if(mapData[r][c]===WALL){ ctx.fillStyle='#1a1410'; ctx.fillRect(sx,sy,TILE_SIZE,TILE_SIZE); }
-                    else {
-                        ctx.fillStyle=((r+c)%2===0)?'#2a1f18':'#251b14'; ctx.fillRect(sx,sy,TILE_SIZE,TILE_SIZE);
-                        if(mapData[r][c]===HIDING_SPOT){
-                            ctx.fillStyle='rgba(100,70,40,0.6)'; ctx.fillRect(sx+6,sy+6,TILE_SIZE-12,TILE_SIZE-12);
-                            ctx.strokeStyle='rgba(200,160,120,0.8)'; ctx.lineWidth=2; ctx.setLineDash([5,3]);
-                            ctx.strokeRect(sx+6,sy+6,TILE_SIZE-12,TILE_SIZE-12); ctx.setLineDash([]);
-                        }
-                    }
-                    const tile=mapData[r][c];
-                    if(tile===DOOR_UNLOCKED||tile===DOOR_LOCKED||tile===EXIT_DOOR){
-                        const ds=getDoorState(r,c); if(ds?.closed){
-                            ctx.fillStyle=ds.locked?(ds.isExit?'#5a0000':'#3a1a0a'):'#5a3a20';
-                            ctx.fillRect(sx+4,sy+2,TILE_SIZE-8,TILE_SIZE-4);
-                            ctx.strokeStyle='#8b0000'; ctx.lineWidth=2; ctx.strokeRect(sx+4,sy+2,TILE_SIZE-8,TILE_SIZE-4);
-                            if(ds.locked){ ctx.fillStyle='#ff3333'; ctx.beginPath(); ctx.arc(sx+TILE_SIZE/2,sy+TILE_SIZE/2,5,0,Math.PI*2); ctx.fill(); }
-                            if(ds.isExit){ ctx.fillStyle='#ff0000'; ctx.font='bold 13px monospace'; ctx.textAlign='center'; ctx.fillText('EXIT',sx+TILE_SIZE/2,sy+TILE_SIZE/2-8); }
-                        }
-                    }
-                }
-                if(enemyExists) {
-                    const es=worldToScreen(enemy.x, enemy.y);
-                    if(enemy.playerVisible || (difficulty!=='nightmare' && enemy.distanceToPlayer<lightRadius)){
-                        ctx.fillStyle='#1a0a0a'; ctx.beginPath(); ctx.arc(es.x,es.y,enemy.radius,0,Math.PI*2); ctx.fill();
-                        ctx.fillStyle='#ff0000'; ctx.shadowColor='#ff0000'; ctx.shadowBlur=10;
-                        ctx.beginPath(); ctx.arc(es.x-5,es.y-4,3.5,0,Math.PI*2); ctx.fill();
-                        ctx.beginPath(); ctx.arc(es.x+5,es.y-4,3.5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-                    } else if(enemy.distanceToPlayer<lightRadius*2){
-                        ctx.fillStyle='#ff0000'; ctx.shadowColor='#ff0000'; ctx.shadowBlur=15;
-                        ctx.beginPath(); ctx.arc(es.x-4,es.y-3,3,0,Math.PI*2); ctx.fill();
-                        ctx.beginPath(); ctx.arc(es.x+4,es.y-3,3,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-                    }
-                }
-                if(!player.isHiding){ const ps=worldToScreen(player.x,player.y); ctx.fillStyle='#c4a882'; ctx.beginPath(); ctx.arc(ps.x,ps.y,player.radius,0,Math.PI*2); ctx.fill(); }
-                for(const item of pickupItems){ if(item.collected) continue; const is=worldToScreen(item.worldX,item.worldY); ctx.fillStyle='#ffd700'; ctx.shadowColor='#ffd700'; ctx.shadowBlur=12; ctx.beginPath(); ctx.arc(is.x,is.y,8,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0; }
-                applyLighting();
-                const fontSize=canvas.width<500?18:16; ctx.font=`bold ${fontSize}px monospace`; ctx.fillStyle='#fff'; ctx.textAlign='left';
-                ctx.fillText(`HP: ${playerHP}/${playerMaxHP}`,20,40); 
-                ctx.fillText(`Keys: ${playerInventory.length}`,20,70);
-                ctx.fillText(player.isHiding?'HIDING':'EXPOSED',20,100);
-                if(difficulty==='practice') ctx.fillText('PRACTICE MODE',20,130);
-            }
-            function renderMenu(){
-                ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,canvas.width,canvas.height);
-                const cx=canvas.width/2, cy=canvas.height/2;
-                ctx.fillStyle='#8b0000'; ctx.font='bold 36px monospace'; ctx.textAlign='center'; 
-                if(gameState==='menu') {
-                    ctx.fillText('DARK HOUSE', cx, cy-100);
-                    ctx.fillStyle='#c4a882'; ctx.font='14px monospace'; ctx.fillText('Survival Horror', cx, cy-70);
-                } else if(gameState==='characterSelect') {
-                    ctx.fillText('SELECT CHARACTER', cx, cy-100);
-                } else if(gameState==='difficultySelect') {
-                    ctx.fillText('SELECT DIFFICULTY', cx, cy-110);
-                } else if(gameState==='paused') {
-                    ctx.fillText('PAUSED', cx, cy-60);
-                } else if(gameState==='death') {
-                    ctx.fillText('YOU DIED', cx, cy-60);
-                } else if(gameState==='win') {
-                    ctx.fillText('ESCAPED!', cx, cy-60);
-                }
-                const buttons = getMenuButtons();
-                buttons.forEach(btn => {
-                    ctx.fillStyle = '#8b0000';
-                    ctx.fillRect(btn.x - btn.w/2, btn.y - btn.h/2, btn.w, btn.h);
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 1;
-                    ctx.strokeRect(btn.x - btn.w/2, btn.y - btn.h/2, btn.w, btn.h);
-                    ctx.fillStyle = '#fff';
-                    ctx.font = 'bold 14px monospace';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(btn.text, btn.x, btn.y + 4);
-                });
-            }
+// ── MENU BUTTONS ──────────────────────────────────────────
+function getBtns(){
+  const cx=canvas.width/2,cy=canvas.height/2;
+  if(gs==='menu')return[{t:'PLAY',x:cx,y:cy+10,w:200,h:50}];
+  if(gs==='charSelect')return[{t:'SWIFT  (2 HP)',x:cx,y:cy-60,w:230,h:45},{t:'BALANCED  (3 HP)',x:cx,y:cy,w:230,h:45},{t:'TANK  (5 HP)',x:cx,y:cy+60,w:230,h:45}];
+  if(gs==='diffSelect')return[{t:'PRACTICE — No Enemy',x:cx,y:cy-90,w:270,h:45},{t:'EASY — Bright',x:cx,y:cy-30,w:230,h:45},{t:'MEDIUM — Dark',x:cx,y:cy+30,w:230,h:45},{t:'NIGHTMARE',x:cx,y:cy+90,w:230,h:45}];
+  if(gs==='paused')return[{t:'RESUME',x:cx,y:cy-30,w:200,h:45},{t:'QUIT',x:cx,y:cy+30,w:200,h:45}];
+  if(gs==='death'||gs==='win')return[{t:'PLAY AGAIN',x:cx,y:cy+50,w:220,h:50}];
+  return[];
+}
+function inBtn(mx,my,b){return mx>b.x-b.w/2&&mx<b.x+b.w/2&&my>b.y-b.h/2&&my<b.y+b.h/2;}
+function menuClick(e){
+  if(gs==='playing')return;
+  const rect=canvas.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)*(canvas.width/rect.width),my=(e.clientY-rect.top)*(canvas.height/rect.height);
+  const bs=getBtns();
+  if(gs==='menu'&&bs[0]&&inBtn(mx,my,bs[0])){gs='charSelect';return;}
+  if(gs==='charSelect'){
+    if(bs[0]&&inBtn(mx,my,bs[0])){charType='fast';phpm=2;pspd=195;gs='diffSelect';}
+    else if(bs[1]&&inBtn(mx,my,bs[1])){charType='balanced';phpm=3;pspd=155;gs='diffSelect';}
+    else if(bs[2]&&inBtn(mx,my,bs[2])){charType='tank';phpm=5;pspd=115;gs='diffSelect';}
+    return;
+  }
+  if(gs==='diffSelect'){
+    if(bs[0]&&inBtn(mx,my,bs[0])){diff='practice';lr=9999;ecount=0;startGame();}
+    else if(bs[1]&&inBtn(mx,my,bs[1])){diff='easy';lr=9999;ebs=65;ehr=180;ecount=1;startGame();}
+    else if(bs[2]&&inBtn(mx,my,bs[2])){diff='medium';lr=225;ebs=130;ehr=350;ecount=1;startGame();}
+    else if(bs[3]&&inBtn(mx,my,bs[3])){diff='nightmare';lr=145;ebs=180;ehr=470;ecount=2;startGame();}
+    return;
+  }
+  if(gs==='paused'){if(bs[0]&&inBtn(mx,my,bs[0]))gs='playing';else if(bs[1]&&inBtn(mx,my,bs[1]))gs='menu';return;}
+  if((gs==='death'||gs==='win')&&bs[0]&&inBtn(mx,my,bs[0]))gs='menu';
+}
 
-            let lastTime=performance.now();
-            function gameLoop(ts){
-                try {
-                    let dt=(ts-lastTime)/1000; if(dt>0.3) dt=0.016; lastTime=ts;
-                    if(canvas.width!==container.clientWidth||canvas.height!==container.clientHeight) resizeCanvas();
-                    update(dt);
-                    if(gameState==='playing' && enemyExists && enemy.distanceToPlayer<lightRadius*0.7 && enemy.state==='chase') shakeAmount=Math.max(shakeAmount,3);
-                    render();
-                } catch(e){ console.error(e); }
-                requestAnimationFrame(gameLoop);
-            }
-            window.addEventListener('resize', resizeCanvas);
-            canvas.addEventListener('contextmenu',e=>e.preventDefault());
-            initDoorStates(); initPickupItems(); gameState='menu';
-            requestAnimationFrame(gameLoop);
-        })();
-    </script>
+function startGame(){
+  php=phpm;map=genMap();initDoors();initItems();initDecos();resetPlayer();resetEnemies();gs='playing';gt=0;sfl=0;initAudio();
+}
+
+// ── UPDATE ────────────────────────────────────────────────
+function dmgPlayer(n){
+  if(player.iTimer>0)return;
+  php-=n;player.dmgCD=0.8;player.iTimer=1.5;sfl=1;sfx.dmg();
+  spawnParts(player.x,player.y,'blood',10);
+  if(php<=0){php=0;gs='death';beep(25,1.0,0.15,'sawtooth');}
+}
+
+function updPlayer(dt){
+  if(gs!=='playing'||player.hiding){player.vx=0;player.vy=0;return;}
+  if(player.dmgCD>0)player.dmgCD-=dt;
+  if(player.iTimer>0)player.iTimer-=dt;
+  let ix=0,iy=0,wantRun=false;
+  if(jActive){ix=jVec.x;iy=jVec.y;wantRun=Math.hypot(ix,iy)>0.7;}
+  if(keys['w']||keys['arrowup'])iy=-1;if(keys['s']||keys['arrowdown'])iy=1;
+  if(keys['a']||keys['arrowleft'])ix=-1;if(keys['d']||keys['arrowright'])ix=1;
+  if(keys['shift'])wantRun=true;
+  const mag=Math.hypot(ix,iy);if(mag>1){ix/=mag;iy/=mag;}
+  if(mag>0.1)player.angle=Math.atan2(iy,ix);
+  const canRun=stam>5;const running=wantRun&&mag>0.3&&canRun;
+  stam=running?Math.max(0,stam-38*dt):Math.min(maxStam,stam+(mag<0.1?22:14)*dt);
+  player.running=running;
+  const spd=running?pspd*1.55:pspd;
+  player.vx=ix*spd;player.vy=iy*spd;
+  // Noise
+  if(mag>0.1){const tn=running?80:18;noiseLv+=(tn-noiseLv)*dt*3;}else noiseLv=Math.max(0,noiseLv-45*dt);
+  noiseLv=Math.max(0,Math.min(100,noiseLv));
+  // Collision
+  const cc=(px,py)=>{const gr=Math.floor(py/TS),gc=Math.floor(px/TS);for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){const r=gr+dr,c=gc+dc;if(r>=0&&r<MR&&c>=0&&c<MC&&!passable(r,c,false)){const tx=c*TS,ty=r*TS,cx2=Math.max(tx,Math.min(px,tx+TS)),cy2=Math.max(ty,Math.min(py,ty+TS));if(Math.hypot(px-cx2,py-cy2)<player.rad)return true;}}return false;};
+  const nx=player.x+player.vx*dt,ny=player.y+player.vy*dt;
+  if(!cc(nx,player.y))player.x=nx;if(!cc(player.x,ny))player.y=ny;
+  player.x=Math.max(player.rad,Math.min(WW-player.rad,player.x));
+  player.y=Math.max(player.rad,Math.min(WH-player.rad,player.y));
+  // Footsteps
+  if(Math.abs(player.vx)>10||Math.abs(player.vy)>10){
+    const now=performance.now()/1000,iv=running?0.21:0.4;
+    if(now-player.lastStep>iv){
+      player.lastStep=now;sfx.foot();
+      if(running)spawnParts(player.x,player.y,'dust',2);
+      const hr=ehr*(noiseLv/100);
+      for(const e of enemies){if(e.hcool<=0&&Math.hypot(e.x-player.x,e.y-player.y)<hr){e.lkx=player.x;e.lky=player.y;if(e.state==='patrol'||e.state==='idle'){e.state='investigate';e.stimer=3.0;recalcPath(e,Math.floor(e.lky/TS),Math.floor(e.lkx/TS));}e.hcool=2.0;}}
+    }
+  }
+}
+
+function updEnemy(e,dt){
+  if(gs!=='playing')return;
+  if(player.hiding&&e.state==='chase'){e.state='search';e.stimer=5.5;e.lkx=player.x;e.lky=player.y;}
+  e.hcool=Math.max(0,e.hcool-dt);
+  e.dist=Math.hypot(e.x-player.x,e.y-player.y);
+  e.eyeP+=dt*2.5;
+  const vr=diff==='nightmare'?lr*0.75:lr;
+  e.visible=e.dist<vr&&!player.hiding;
+  if(e.visible&&e.state!=='chase'){e.state='chase';e.stimer=0;}
+  if(e.state==='chase'&&!e.visible&&e.stimer>3.0){e.state='search';e.stimer=6.0;e.lkx=player.x;e.lky=player.y;}
+  if(e.state==='investigate'&&e.stimer<=0){e.state='search';e.stimer=4.0;}
+  if(e.state==='search'&&e.stimer<=0){e.state='patrol';e.path=[];}
+  if(e.state==='idle'&&e.itimer<=0)e.state='patrol';
+  e.stimer-=dt;if(e.state==='idle')e.itimer-=dt;
+  if(e.state==='chase')e.alertL=Math.min(1,e.alertL+dt*2.5);
+  else if(e.state==='search'||e.state==='investigate')e.alertL=Math.min(1,e.alertL+dt*0.4);
+  else e.alertL=Math.max(0,e.alertL-dt*0.4);
+  let tr,tc;
+  if(e.state==='patrol'){
+    if(!e.wp.length)setupWP(e);
+    const wp=e.wp[e.wi];e.tx=wp.x;e.ty=wp.y;tr=Math.floor(wp.y/TS);tc=Math.floor(wp.x/TS);
+    if(Math.hypot(e.x-wp.x,e.y-wp.y)<TS*0.5){e.wi=(e.wi+1)%e.wp.length;if(Math.random()<0.3){e.state='idle';e.itimer=1.5+Math.random()*2;}}
+  }else if(e.state==='chase'){e.tx=player.x;e.ty=player.y;tr=Math.floor(player.y/TS);tc=Math.floor(player.x/TS);e.lkx=player.x;e.lky=player.y;}
+  else{e.tx=e.lkx;e.ty=e.lky;tr=Math.floor(e.lky/TS);tc=Math.floor(e.lkx/TS);
+    if(e.state==='search'){e.stimer2+=dt;if(e.stimer2>2&&e.dist>vr){const nh=[];for(let r=0;r<MR;r++)for(let c=0;c<MC;c++)if(map[r][c]===HIDE){const hx=c*TS+TS/2,hy=r*TS+TS/2,d=Math.hypot(e.lkx-hx,e.lky-hy);if(d<TS*6)nh.push({r,c,d});}nh.sort((a,b)=>a.d-b.d);if(nh.length>0){const h=nh[Math.floor(e.stimer2/3)%nh.length];tr=h.r;tc=h.c;e.tx=h.c*TS+TS/2;e.ty=h.r*TS+TS/2;if(player.hiding&&player.hideRef&&player.hideRef.r===h.r&&player.hideRef.c===h.c&&Math.random()<0.35){player.hiding=false;player.hideRef=null;dmgPlayer(1);e.state='chase';e.stimer=0;}}}}
+  }
+  e.prt-=dt;if(e.prt<=0||!e.path.length){e.prt=0.28;const ct=clamp(tr,tc);recalcPath(e,ct.r,ct.c);}
+  let ms=e.spd;if(e.state==='chase')ms*=1.45;else if(e.state==='patrol')ms*=0.55;else if(e.state==='idle')ms=0;
+  if(e.path.length&&ms>0){const nx=e.path[0],wpx=nx.c*TS+TS/2,wpy=nx.r*TS+TS/2,ddx=wpx-e.x,ddy=wpy-e.y,dst=Math.hypot(ddx,ddy);if(dst<4)e.path.shift();else{e.x+=(ddx/dst)*ms*dt;e.y+=(ddy/dst)*ms*dt;}}
+  e.x=Math.max(e.rad,Math.min(WW-e.rad,e.x));e.y=Math.max(e.rad,Math.min(WH-e.rad,e.y));
+  if(e.dist<player.rad+e.rad&&!player.hiding&&player.iTimer<=0)dmgPlayer(1);
+  if(e.state==='chase')e.spd=Math.min(ebs*1.65,e.spd+dt*4);else e.spd=Math.max(ebs,e.spd-dt*6);
+}
+
+function update(dt){
+  if(gs!=='playing')return;
+  dt=Math.min(dt,0.2);gt+=dt;
+  updPlayer(dt);for(const e of enemies)updEnemy(e,dt);updParts(dt);
+  if(sfl>0)sfl=Math.max(0,sfl-dt*4);
+}
+
+// ── CAMERA ────────────────────────────────────────────────
+let camX=0,camY=0,shk=0;
+function updCam(){
+  const tx=Math.max(0,Math.min(WW-canvas.width,player.x-canvas.width/2));
+  const ty=Math.max(0,Math.min(WH-canvas.height,player.y-canvas.height/2));
+  camX+=(tx-camX)*0.09;camY+=(ty-camY)*0.09;
+  if(shk>0){camX+=(Math.random()-0.5)*shk*2;camY+=(Math.random()-0.5)*shk*2;shk*=0.83;if(shk<0.3)shk=0;}
+}
+function ws(wx,wy){return{x:wx-camX,y:wy-camY};}
+
+// ── DRAW FUNCTIONS ────────────────────────────────────────
+const BLOOD=[['#5c0000','#4a0000','#6e0000','#380000']];
+function drawWall(sx,sy,r,c){
+  const v=((r*13+c*7)%5)*3;
+  ctx.fillStyle=`rgb(${20+v},${13+v},${8+v})`;
+  ctx.fillRect(sx,sy,TS,TS);
+  ctx.save();ctx.beginPath();ctx.rect(sx,sy,TS,TS);ctx.clip();
+  ctx.strokeStyle='rgba(0,0,0,0.42)';ctx.lineWidth=1.5;
+  const bH=12;
+  for(let my=0;my<=TS;my+=bH){ctx.beginPath();ctx.moveTo(sx,sy+my);ctx.lineTo(sx+TS,sy+my);ctx.stroke();}
+  for(let my=0;my<TS;my+=bH){
+    const rn=Math.floor((sy+my)/bH),off=(rn%2)*Math.round(TS/2);
+    for(let mx=off-TS;mx<=TS;mx+=TS){ctx.beginPath();ctx.moveTo(sx+mx,sy+my);ctx.lineTo(sx+mx,sy+my+bH);ctx.stroke();}
+  }
+  ctx.fillStyle='rgba(255,255,255,0.04)';ctx.fillRect(sx,sy,TS,2);
+  ctx.fillStyle='rgba(0,0,0,0.28)';ctx.fillRect(sx,sy+TS-3,TS,3);
+  ctx.restore();
+}
+function drawFloor(sx,sy,r,c){
+  ctx.fillStyle=((r+c)%2===0)?'#2b1f16':'#251a11';
+  ctx.fillRect(sx,sy,TS,TS);
+  ctx.strokeStyle='rgba(0,0,0,0.18)';ctx.lineWidth=1;
+  for(let ly=9;ly<TS;ly+=9){ctx.beginPath();ctx.moveTo(sx,sy+ly);ctx.lineTo(sx+TS,sy+ly);ctx.stroke();}
+  const sd=(r*37+c*19)%100;
+  if(sd<25){ctx.fillStyle='rgba(0,0,0,0.09)';ctx.fillRect(sx+sd%TS,sy+(sd*3)%TS,9+sd%10,1);}
+}
+function drawHideSpot(sx,sy){
+  ctx.fillStyle='#191008';ctx.fillRect(sx+4,sy+2,TS-8,TS-4);
+  ctx.strokeStyle='rgba(200,155,90,0.55)';ctx.lineWidth=1.5;
+  ctx.setLineDash([4,2]);ctx.strokeRect(sx+7,sy+5,TS-14,TS-10);ctx.setLineDash([]);
+  ctx.fillStyle='rgba(200,155,90,0.6)';ctx.beginPath();ctx.arc(sx+TS/2,sy+TS/2,3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(200,155,90,0.45)';ctx.font='8px monospace';ctx.textAlign='center';ctx.fillText('HIDE',sx+TS/2,sy+TS-7);
+}
+function drawDoor(sx,sy,r,c,d){
+  if(!d||!d.closed){
+    drawFloor(sx,sy,r,c);
+    ctx.strokeStyle='rgba(90,55,25,0.7)';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(sx+2,sy);ctx.lineTo(sx+2,sy+TS);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(sx+TS-2,sy);ctx.lineTo(sx+TS-2,sy+TS);ctx.stroke();
+    return;
+  }
+  ctx.fillStyle=d.isExit?'#180000':(d.locked?'#281008':'#3a2012');
+  ctx.fillRect(sx+3,sy+1,TS-6,TS-2);
+  ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=1;
+  for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(sx+10+i*11,sy+4);ctx.lineTo(sx+10+i*11,sy+TS-4);ctx.stroke();}
+  ctx.strokeStyle=d.isExit?'#8b0000':(d.locked?'#5a2010':'#6a3818');ctx.lineWidth=2;
+  ctx.strokeRect(sx+3,sy+1,TS-6,TS-2);
+  ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.lineWidth=1;
+  ctx.strokeRect(sx+8,sy+5,TS-16,TS/2-5);ctx.strokeRect(sx+8,sy+TS/2+2,TS-16,TS/2-8);
+  if(d.locked){
+    ctx.fillStyle=d.isExit?'#ff0000':'#ff4800';ctx.shadowColor=d.isExit?'#ff0000':'#ff4800';ctx.shadowBlur=9;
+    ctx.beginPath();ctx.arc(sx+TS/2,sy+TS/2,4,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+    if(d.isExit){ctx.fillStyle='#ff2222';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText('EXIT',sx+TS/2,sy+TS/2-9);}
+  }else{ctx.fillStyle='rgba(170,110,50,0.7)';ctx.fillRect(sx+TS-11,sy+TS/2-4,4,8);}
+}
+function drawDeco(sx,sy,dec){
+  ctx.save();ctx.translate(sx+TS/2,sy+TS/2);ctx.rotate(dec.rot);ctx.globalAlpha=0.22*dec.sc;
+  ctx.fillStyle=BLOOD[0][dec.v];const s=dec.sc*11;
+  ctx.beginPath();ctx.ellipse(0,0,s,s*0.55,0,0,Math.PI*2);ctx.fill();
+  for(let i=0;i<3;i++){ctx.beginPath();ctx.ellipse(s*(0.5+i*0.28),i*s*0.28,s*0.28,s*0.18,i*0.5,0,Math.PI*2);ctx.fill();}
+  ctx.restore();
+}
+function drawKey(sx,sy,it,t){
+  const cx=sx+TS/2,cy=sy+TS/2,a=t*2.2;
+  const cols=['#ffd700','#c0c0c0','#cd7f32'];const col=cols[it.kid%3];
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(a);
+  ctx.shadowColor=col;ctx.shadowBlur=14;ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.arc(0,-5,5.5,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(0,-5,2,0,Math.PI*2);ctx.fillStyle='#191010';ctx.fill();
+  ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(0,-0.5);ctx.lineTo(0,8);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(0,3);ctx.lineTo(3,3);ctx.lineTo(3,5);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(0,6);ctx.lineTo(2.5,6);ctx.stroke();
+  ctx.shadowBlur=0;ctx.restore();
+}
+function drawHP(sx,sy,t){
+  const cx=sx+TS/2,cy=sy+TS/2,p=0.85+Math.sin(t*3)*0.15;
+  ctx.save();ctx.translate(cx,cy);ctx.scale(p,p);
+  ctx.shadowColor='#00ff55';ctx.shadowBlur=12;ctx.fillStyle='rgba(0,220,65,0.9)';
+  ctx.fillRect(-2.5,-9,5,18);ctx.fillRect(-9,-2.5,18,5);
+  ctx.shadowBlur=0;ctx.restore();
+}
+function drawPlayer(t){
+  if(player.hiding)return;
+  const p=ws(player.x,player.y);
+  const blink=player.iTimer>0&&Math.floor(player.iTimer*8)%2===0;if(blink)return;
+  ctx.save();ctx.translate(p.x,p.y);
+  const a=player.angle;
+  ctx.fillStyle='#c4a882';ctx.beginPath();ctx.arc(0,0,player.rad,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.18)';ctx.beginPath();ctx.arc(0,3,player.rad*0.6,0,Math.PI);ctx.fill();
+  ctx.fillStyle='#d5b896';ctx.beginPath();ctx.arc(Math.cos(a)*8,Math.sin(a)*8,6.5,0,Math.PI*2);ctx.fill();
+  // Flashlight handle
+  ctx.strokeStyle='rgba(210,170,110,0.75)';ctx.lineWidth=3;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*(player.rad+5),Math.sin(a)*(player.rad+5));ctx.stroke();
+  ctx.restore();
+}
+function drawEnemy(e,t){
+  const p=ws(e.x,e.y);
+  const vr=diff==='nightmare'?lr*1.2:lr*2.2;
+  if(e.dist>vr&&diff!=='practice'&&diff!=='easy')return;
+  const alpha=diff==='nightmare'?Math.max(0,Math.min(1,(lr*1.8-e.dist)/lr)):1;
+  if(alpha<=0)return;
+  ctx.save();ctx.globalAlpha=alpha;ctx.translate(p.x,p.y);
+  const glitch=e.state==='chase'?Math.sin(t*14)*1.5:0;
+  if(e.state==='chase'){ctx.shadowColor='rgba(150,0,0,0.4)';ctx.shadowBlur=22;}
+  const bc=e.state==='chase'?'#130000':'#090909';
+  ctx.fillStyle=bc;
+  // Humanoid silhouette body
+  ctx.beginPath();ctx.ellipse(glitch,5,e.rad*0.68,e.rad*1.08,0,0,Math.PI*2);ctx.fill();
+  // Head
+  ctx.beginPath();ctx.ellipse(glitch,-e.rad*0.87,e.rad*0.44,e.rad*0.4,0,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  // Arms reaching in chase/search
+  if(e.state==='chase'||e.state==='search'){
+    const aDir=Math.atan2(player.y-e.y,player.x-e.x);
+    ctx.strokeStyle='rgba(18,0,0,0.9)';ctx.lineWidth=4.5;ctx.lineCap='round';
+    const aLen=e.rad*1.35+Math.sin(t*3)*5;
+    const la=aDir-0.28,ra=aDir+0.28;
+    ctx.beginPath();ctx.moveTo(Math.cos(la-0.9)*e.rad*0.45+glitch,Math.sin(la-0.9)*e.rad*0.45);ctx.lineTo(Math.cos(la)*aLen+glitch,Math.sin(la)*aLen);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(Math.cos(ra+0.9)*e.rad*0.45+glitch,Math.sin(ra+0.9)*e.rad*0.45);ctx.lineTo(Math.cos(ra)*aLen+glitch,Math.sin(ra)*aLen);ctx.stroke();
+    // Clawed fingers
+    ctx.lineWidth=2;
+    for(let i=-1;i<=1;i++){ctx.beginPath();ctx.moveTo(Math.cos(la)*aLen+glitch,Math.sin(la)*aLen);ctx.lineTo(Math.cos(la+i*0.2)*(aLen+8)+glitch,Math.sin(la+i*0.2)*(aLen+8));ctx.stroke();ctx.beginPath();ctx.moveTo(Math.cos(ra)*aLen+glitch,Math.sin(ra)*aLen);ctx.lineTo(Math.cos(ra+i*0.2)*(aLen+8)+glitch,Math.sin(ra+i*0.2)*(aLen+8));ctx.stroke();}
+  }
+  // Eyes
+  const ec=e.state==='chase'?'#ff0000':e.state==='search'?'#ff5500':'#990000';
+  const ep=0.55+Math.sin(e.eyeP)*0.45;
+  ctx.shadowColor=ec;ctx.shadowBlur=e.state==='chase'?18:9;ctx.fillStyle=ec;ctx.globalAlpha=alpha*ep;
+  ctx.beginPath();ctx.ellipse(-5+glitch,-e.rad*0.87,3.5,2.4,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(5+glitch,-e.rad*0.87,3.5,2.4,0,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;ctx.restore();
+}
+function drawParticles(){
+  for(const p of parts){const s=ws(p.x,p.y);ctx.globalAlpha=p.life/p.ml;ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(s.x,s.y,p.sz,0,Math.PI*2);ctx.fill();}
+  ctx.globalAlpha=1;
+}
+
+function applyFlashlight(){
+  if(diff==='practice'||diff==='easy')return;
+  const p=ws(player.x,player.y);
+  lctx.clearRect(0,0,lm.width,lm.height);
+  const dk=diff==='medium'?0.9:0.96;
+  lctx.fillStyle=`rgba(0,0,0,${dk})`;lctx.fillRect(0,0,lm.width,lm.height);
+  if(player.hiding){ctx.drawImage(lm,0,0);return;}
+  lctx.globalCompositeOperation='destination-out';
+  const a=player.angle,ca=Math.PI/2.6,cl=lr;
+  const cg=lctx.createRadialGradient(p.x,p.y,0,p.x,p.y,cl);
+  cg.addColorStop(0,'rgba(255,215,140,1)');cg.addColorStop(0.45,'rgba(255,200,100,0.92)');cg.addColorStop(0.82,'rgba(255,180,80,0.38)');cg.addColorStop(1,'rgba(0,0,0,0)');
+  lctx.beginPath();lctx.moveTo(p.x,p.y);lctx.arc(p.x,p.y,cl,a-ca/2,a+ca/2);lctx.closePath();lctx.fillStyle=cg;lctx.fill();
+  const ag=lctx.createRadialGradient(p.x,p.y,0,p.x,p.y,52);
+  ag.addColorStop(0,'rgba(255,215,140,0.65)');ag.addColorStop(1,'rgba(0,0,0,0)');
+  lctx.beginPath();lctx.arc(p.x,p.y,52,0,Math.PI*2);lctx.fillStyle=ag;lctx.fill();
+  lctx.globalCompositeOperation='source-over';
+  ctx.drawImage(lm,0,0);
+}
+
+function drawHUD(){
+  const pad=18,top=30;
+  // Hearts
+  for(let i=0;i<phpm;i++){
+    const x=pad+i*27,y=top;
+    ctx.fillStyle=i<php?'#cc0000':'#2a1010';ctx.shadowColor=i<php?'#ff2222':'transparent';ctx.shadowBlur=i<php?7:0;
+    ctx.beginPath();ctx.moveTo(x+9,y+13);ctx.bezierCurveTo(x+9,y+9,x+2,y+3,x+2,y+8);ctx.bezierCurveTo(x+2,y+2,x+9,y+1,x+9,y+6);ctx.bezierCurveTo(x+9,y+1,x+16,y+2,x+16,y+8);ctx.bezierCurveTo(x+16,y+3,x+9,y+9,x+9,y+13);ctx.fill();
+  }
+  ctx.shadowBlur=0;
+  // Keys
+  const kx=pad+phpm*27+10,ky=top+12;
+  ctx.fillStyle='#ffd700';ctx.shadowColor='#ffd700';ctx.shadowBlur=5;
+  ctx.font='bold 14px monospace';ctx.textAlign='left';ctx.fillText(`⬡ ${inv.length}`,kx,ky);ctx.shadowBlur=0;
+  // State badge
+  const hiding=player.hiding;ctx.fillStyle=hiding?'rgba(0,180,80,0.85)':'rgba(180,20,20,0.7)';
+  const bw=80,bh=20,bx=pad,by=top+24;
+  ctx.fillRect(bx,by,bw,bh);ctx.fillStyle=hiding?'#88ffaa':'#ffaaaa';ctx.font='bold 10px monospace';ctx.textAlign='center';
+  ctx.fillText(hiding?'■ HIDING':'● EXPOSED',bx+bw/2,by+13);
+  // Stamina bar
+  const sBy=top+54;ctx.fillStyle='rgba(255,255,255,0.22)';ctx.font='9px monospace';ctx.textAlign='left';ctx.fillText('STAMINA',pad,sBy-2);
+  ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fillRect(pad-1,sBy-1,102,9);
+  const sc2=stam>50?'#44aaff':stam>20?'#ffaa00':'#ff2200';ctx.fillStyle=sc2;ctx.fillRect(pad,sBy,100*(stam/maxStam),7);
+  // Noise bar
+  const nBy=top+72;ctx.fillStyle='rgba(255,255,255,0.22)';ctx.fillText('NOISE',pad,nBy-2);
+  ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fillRect(pad-1,nBy-1,102,9);
+  const nc=noiseLv<30?'#22aa44':noiseLv<70?'#aaaa00':'#ff2200';ctx.fillStyle=nc;ctx.fillRect(pad,nBy,100*(noiseLv/100),7);
+  if(diff==='nightmare'&&ecount>1){ctx.fillStyle='rgba(200,50,50,0.7)';ctx.font='10px monospace';ctx.textAlign='left';ctx.fillText('⚠ 2 HUNTERS',pad,top+96);}
+  if(diff==='practice'){ctx.fillStyle='rgba(80,200,80,0.65)';ctx.font='10px monospace';ctx.fillText('PRACTICE MODE',pad,top+96);}
+  if(gt<12){ctx.fillStyle='rgba(255,255,255,0.35)';ctx.font='11px monospace';ctx.textAlign='center';ctx.fillText('WASD/Arrows — Move  |  Shift — Sprint  |  E — Interact',canvas.width/2,canvas.height-20);}
+}
+
+function drawMenuBtns(){
+  const bs=getBtns();
+  bs.forEach(b=>{
+    const x=b.x-b.w/2,y=b.y-b.h/2;
+    ctx.fillStyle='rgba(90,8,8,0.82)';
+    ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,b.w,b.h,7);else ctx.rect(x,y,b.w,b.h);ctx.fill();
+    ctx.strokeStyle='rgba(200,55,55,0.65)';ctx.lineWidth=1.5;
+    ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,b.w,b.h,7);else ctx.rect(x,y,b.w,b.h);ctx.stroke();
+    ctx.fillStyle='#fff';ctx.font='bold 14px monospace';ctx.textAlign='center';ctx.fillText(b.t,b.x,b.y+5);
+  });
+}
+
+function renderMenu(){
+  ctx.fillStyle='#040204';ctx.fillRect(0,0,canvas.width,canvas.height);
+  const vg=ctx.createRadialGradient(canvas.width/2,canvas.height/2,canvas.height*0.1,canvas.width/2,canvas.height/2,canvas.height*0.85);
+  vg.addColorStop(0,'rgba(20,0,0,0.3)');vg.addColorStop(1,'rgba(0,0,0,0.82)');ctx.fillStyle=vg;ctx.fillRect(0,0,canvas.width,canvas.height);
+  const cx=canvas.width/2,cy=canvas.height/2;ctx.textAlign='center';
+  if(gs==='menu'){
+    ctx.shadowColor='#8b0000';ctx.shadowBlur=35;ctx.fillStyle='#cc1111';ctx.font=`bold ${Math.min(58,canvas.width/9)}px 'Courier New',monospace`;ctx.fillText('DARK HOUSE',cx,cy-80);ctx.shadowBlur=0;
+    ctx.fillStyle='#55221a';ctx.font=`15px monospace`;ctx.fillText('— S U R V I V A L  H O R R O R —',cx,cy-48);
+    ctx.fillStyle='rgba(140,90,70,0.55)';ctx.font='13px monospace';ctx.fillText('Find the key. Reach the exit. Don\'t get caught.',cx,cy-14);
+  }else if(gs==='charSelect'){ctx.fillStyle='#cc1111';ctx.font='bold 26px monospace';ctx.fillText('SELECT CHARACTER',cx,cy-110);ctx.fillStyle='rgba(150,90,70,0.65)';ctx.font='13px monospace';ctx.fillText('Swift = speed · Balanced = default · Tank = more HP',cx,cy-80);}
+  else if(gs==='diffSelect'){ctx.fillStyle='#cc1111';ctx.font='bold 24px monospace';ctx.fillText('SELECT DIFFICULTY',cx,cy-130);ctx.fillStyle='rgba(150,90,70,0.5)';ctx.font='12px monospace';ctx.fillText('Nightmare spawns 2 hunters',cx,cy-105);}
+  else if(gs==='paused'){ctx.fillStyle='rgba(0,0,0,0.65)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.shadowColor='#8b0000';ctx.shadowBlur=25;ctx.fillStyle='#cc1111';ctx.font='bold 42px monospace';ctx.fillText('PAUSED',cx,cy-70);ctx.shadowBlur=0;}
+  else if(gs==='death'){ctx.fillStyle='rgba(70,0,0,0.55)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.shadowColor='#ff0000';ctx.shadowBlur=30;ctx.fillStyle='#ff1111';ctx.font=`bold ${Math.min(54,canvas.width/8)}px monospace`;ctx.fillText('YOU DIED',cx,cy-60);ctx.shadowBlur=0;ctx.fillStyle='rgba(200,90,70,0.65)';ctx.font='14px monospace';ctx.fillText('The darkness claimed you.',cx,cy-20);}
+  else if(gs==='win'){ctx.shadowColor='#00ff55';ctx.shadowBlur=30;ctx.fillStyle='#44ff88';ctx.font=`bold ${Math.min(50,canvas.width/9)}px monospace`;ctx.fillText('ESCAPED!',cx,cy-60);ctx.shadowBlur=0;ctx.fillStyle='rgba(80,200,100,0.65)';ctx.font='14px monospace';ctx.fillText('You survived the Dark House.',cx,cy-20);}
+  drawMenuBtns();
+}
+
+// ── RENDER ────────────────────────────────────────────────
+function render(t){
+  if(!canvas.width||!canvas.height)return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(gs==='menu'||gs==='charSelect'||gs==='diffSelect'||gs==='death'||gs==='win'){renderMenu();return;}
+  updCam();
+  for(const e of enemies)if(e.state==='chase'&&e.dist<lr*0.7)shk=Math.max(shk,3);
+  ctx.fillStyle='#060403';ctx.fillRect(0,0,canvas.width,canvas.height);
+  const sc=Math.max(0,Math.floor(camX/TS)-1),ec=Math.min(MC-1,Math.ceil((camX+canvas.width)/TS)+1);
+  const sr=Math.max(0,Math.floor(camY/TS)-1),er=Math.min(MR-1,Math.ceil((camY+canvas.height)/TS)+1);
+  // Floor pass
+  for(let r=sr;r<=er;r++)for(let c=sc;c<=ec;c++){const sx=c*TS-camX,sy=r*TS-camY;if(map[r][c]!==WALL)drawFloor(sx,sy,r,c);}
+  // Decorations (blood stains)
+  for(const d of decos){if(d.r>=sr&&d.r<=er&&d.c>=sc&&d.c<=ec){const sx=d.c*TS-camX,sy=d.r*TS-camY;drawDeco(sx,sy,d);}}
+  // Walls, doors, hides
+  for(let r=sr;r<=er;r++)for(let c=sc;c<=ec;c++){
+    const sx=c*TS-camX,sy=r*TS-camY,tile=map[r][c];
+    if(tile===WALL)drawWall(sx,sy,r,c);
+    else if(tile===HIDE)drawHideSpot(sx,sy);
+    else if(tile===DOOR_U||tile===DOOR_L||tile===DOOR_X)drawDoor(sx,sy,r,c,ds(r,c));
+  }
+  // Items
+  for(const it of items){
+    if(it.got)continue;
+    const isr=Math.floor(it.wy/TS),isc=Math.floor(it.wx/TS);
+    if(isr<sr-1||isr>er+1||isc<sc-1||isc>ec+1)continue;
+    const sx=isc*TS-camX,sy=isr*TS-camY;
+    if(it.type==='key')drawKey(sx,sy,it,t);
+    else if(it.type==='hp')drawHP(sx,sy,t);
+  }
+  // Enemies
+  for(const e of enemies)drawEnemy(e,t);
+  // Particles
+  drawParticles();
+  // Player
+  drawPlayer(t);
+  // Flashlight overlay
+  applyFlashlight();
+  // Damage flash
+  if(sfl>0){ctx.fillStyle=`rgba(170,0,0,${sfl*0.38})`;ctx.fillRect(0,0,canvas.width,canvas.height);}
+  // Low HP heartbeat vignette
+  if(php===1&&ecount>0){const p=Math.abs(Math.sin(gt*2.2))*0.13;ctx.fillStyle=`rgba(90,0,0,${p})`;ctx.fillRect(0,0,canvas.width,canvas.height);}
+  // HUD
+  drawHUD();
+  // Pause overlay
+  if(gs==='paused'){
+    ctx.fillStyle='rgba(0,0,0,0.62)';ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.shadowColor='#8b0000';ctx.shadowBlur=22;ctx.fillStyle='#cc1111';ctx.font='bold 40px monospace';ctx.textAlign='center';ctx.fillText('PAUSED',canvas.width/2,canvas.height/2-70);ctx.shadowBlur=0;
+    drawMenuBtns();
+  }
+}
+
+// ── LOOP ──────────────────────────────────────────────────
+let lastT=performance.now();
+function loop(ts){
+  try{
+    let dt=(ts-lastT)/1000;if(dt>0.2)dt=0.016;lastT=ts;
+    if(canvas.width!==cont.clientWidth||canvas.height!==cont.clientHeight)resizeCanvas();
+    update(dt);render(ts/1000);
+  }catch(e){console.error(e);}
+  requestAnimationFrame(loop);
+}
+window.addEventListener('resize',resizeCanvas);
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+initDoors();initItems();gs='menu';
+requestAnimationFrame(loop);
+})();
+</script>
 </body>
 </html>
